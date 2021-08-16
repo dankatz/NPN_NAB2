@@ -31,7 +31,7 @@ nab_raw <- read_csv("C:/Users/dsk856/Box/texas/NAB/NAB2009_2019_pollen_200508.cs
   filter(site == "Armonk" | site == "Marietta (Atlanta)")
 
 #expand to include missing dates
-date_station_grid <- expand_grid(seq(min(nab_raw$date), max(nab_raw$date), by = '1 day'), unique(nab$site)) %>% 
+date_station_grid <- expand_grid(seq(min(nab_raw$date), max(nab_raw$date), by = '1 day'), unique(nab_raw$site)) %>% 
   `colnames<-`(c("Date", "site")) %>%
   filter(!is.na(site)) %>% 
   ungroup()
@@ -198,6 +198,13 @@ nab_npn %>%
                formula = formula, parse = TRUE, label.x = .9, color = "black") +
   xlab("plants flowering \n(proportion; 7 day moving average)") + ylab(pollen~grains~per~m^3)
 
+
+nab_npn %>% 
+  filter(nobs_yes_per_season > 50) %>% #only include taxa x seasons where there's decent NPN data
+  filter(doy > 70 & doy < 150) %>% 
+  filter(taxon == "Quercus") %>% 
+  ggplot(aes(y = pol + 1)) + geom_histogram() + theme_bw() +
+  facet_wrap(site~taxon) + scale_y_log10() 
 
 #visualize time series side by side
 nab_npn %>% 
