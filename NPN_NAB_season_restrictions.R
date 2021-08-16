@@ -35,11 +35,12 @@ library(ggthemes)
 library(MASS)
 library(vcd) #install.packages('vcd')
 library(AeRobiology)
-library(reshape2)
+library(reshape2) #dk: I'm probably going to update instances of reshape2 to dplyr/tidyr when I see them
 
 ### load in and prepare NAB data ###############################################################
 #nab_raw <- read_csv("~/RProjects/DanK_analyses/NAB_data/NAB_pollen_210621.csv", guess_max = 92013) 
 nab_raw <- read_csv("C:/Users/dsk856/Box/things for other people/NAB_NPN/NAB_pollen_210621.csv", guess_max = 92013) 
+#dk: we should probably switch over to the 'here' package for this; in the meantime, we can just comment/uncomment this line
 
 ### remove Denver rows since no meaningful data in there #####
 nab_raw <- filter(nab_raw, site != "Denver") 
@@ -62,74 +63,97 @@ nab <- left_join(date_station_grid, nab_raw) %>%
                 Juglans, Liquidambar, Myrica, Pinaceae, Populus, Platanus, Quercus, Salix, Tilia, Tsuga, Ulmus) %>% 
   pivot_longer(cols = c(Acer, Alnus, Betula, Carpinus.Ostrya, Carya, Celtis, Corylus, Cupressaceae, Fagus, Fraxinus, 
                         Juglans, Liquidambar, Myrica, Pinaceae, Populus, Platanus, Quercus, Salix, Tilia, Tsuga, Ulmus),
-               names_to = "taxon", values_to = "pol") 
+               names_to = "taxon", values_to = "pol") %>% 
+  arrange(site, taxon, Date) %>% 
+  mutate(Year = year(Date))
 
-# rescale pollen counts to 0-1 for each site*taxon*year
-nab$Year<-year(nab$Date)
 
-nab <- nab %>%
-  group_by(site, taxon, Year) %>%
-  mutate(polpct = scales::rescale(pol, to=c(0,1)))
+## create season definitions based on pollen integral =================================================
+#total pollen measured per site/taxon/year
+nab_focal_season_max <- nab %>% 
+              group_by(site, taxon, Year) %>% 
+              summarize(sum_pol = sum(pol, na.rm = TRUE))
+            
+#position in pollen season
+nab_seasons <- nab %>% left_join(., nab_focal_season_max) %>% 
+              group_by(site, taxon, Year) %>% 
+              mutate(cumu_pol = cumsum(replace_na(pol, 0)),  #cumulative sum of pollen #putting NAs as 0s for calculating seasonal sums 
+                     cumu_pol_r = cumu_pol/sum_pol,          #relative sum of pollen
+                     in_95season = case_when(cumu_pol_r < 0.025 ~ "not in 95% season", #is the observation in the 95% pollen season?
+                                             cumu_pol_r >= 0.025 & cumu_pol_r <= 0.975~ "in 95% season",
+                                             cumu_pol_r > 0.975 ~ "not in 95% season"))  
+  
+# # rescale pollen counts to 0-1 for each site*taxon*year #dk: I think that any re-scaling should be done at the very end, not here
+# nab$Year<-year(nab$Date)
+# 
+# nab <- nab %>%
+#   group_by(site, taxon, Year) %>%
+#   mutate(polpct = scales::rescale(pol, to=c(0,1)))
 
-# reshape table from long to wide - need to do this for AeRobiology package to work
-nab1 <- dcast(nab, Date + site ~ taxon, value.var = "polpct")
+# dk: I'm just going to do it manually since I'd rather know exactly what's happening and doing it for each station is 
+# a little awkward and doesn't scale as well, especially because this is running pretty slow 
 
-# AeRobiology only seems to work for one site at a time?? Run through NAB data for each site, generate PS (pollen season) stats one at a time
-Armonk <- subset(nab1, site == "Armonk")
-Armonk$Date <- as.Date(Armonk$Date, format = "%Y-%m-%d")
-Armonk <- subset(Armonk, select = -site)
-ArmonkPS <- calculate_ps(Armonk, method = "percentage", perc = 95)
-ArmonkPS$site <- "Armonk"
 
-Carrolton <- subset(nab1, site == "Carrolton")
-Carrolton$Date <- as.Date(Carrolton$Date, format = "%Y-%m-%d")
-Carrolton <- subset(Carrolton, select = -site)
-CarroltonPS <- calculate_ps(Carrolton, method = "percentage", perc = 95)
-CarroltonPS$site <- "Carrolton"
 
-FlowerMound <- subset(nab1, site == "Flower Mound")
-FlowerMound$Date <- as.Date(FlowerMound$Date, format = "%Y-%m-%d")
-FlowerMound <- subset(FlowerMound, select = -site)
-FlowerMoundPS <- calculate_ps(FlowerMound, method = "percentage", perc = 95)
-FlowerMoundPS$site <- "Flower Mound"
-
-Minneapolis <- subset(nab1, site == "Minneapolis")
-Minneapolis$Date <- as.Date(Minneapolis$Date, format = "%Y-%m-%d")
-Minneapolis <- subset(Minneapolis, select = -site)
-MinneapolisPS <- calculate_ps(Minneapolis, method = "percentage", perc = 95)
-MinneapolisPS$site <- "Minneapolis"
-
-Springfield <- subset(nab1, site == "Springfield")
-Springfield$Date <- as.Date(Springfield$Date, format = "%Y-%m-%d")
-Springfield <- subset(Springfield, select = -site)
-SpringfieldPS <- calculate_ps(Springfield, method = "percentage", perc = 95)
-SpringfieldPS$site <- "Springfield"
-
-Waterbury <- subset(nab1, site == "Waterbury")
-Waterbury$Date <- as.Date(Waterbury$Date, format = "%Y-%m-%d")
-Waterbury <- subset(Waterbury, select = -site)
-WaterburyPS <- calculate_ps(Waterbury, method = "percentage", perc = 95)
-WaterburyPS$site <- "Waterbury"
-
-# paste all of the "sitePS" dfs back together into one df
-nabPS <- rbind(ArmonkPS, CarroltonPS, FlowerMoundPS, MinneapolisPS, SpringfieldPS, WaterburyPS)
-
-# drop unneeded columns
-nabPS <- subset(nabPS, select = -(ln.ps:daysth))
-
-# clean up unneeded files
-rm(Armonk)
-rm(ArmonkPS)
-rm(Carrolton)
-rm(CarroltonPS)
-rm(FlowerMound)
-rm(FlowerMoundPS)
-rm(Minneapolis)
-rm(MinneapolisPS)
-rm(Springfield)
-rm(SpringfieldPS)
-rm(Waterbury)
-rm(WaterburyPS)
+# # reshape table from long to wide - need to do this for AeRobiology package to work
+# nab1 <- dcast(nab, Date + site ~ taxon, value.var = "polpct")
+# 
+# # AeRobiology only seems to work for one site at a time?? Run through NAB data for each site, generate PS (pollen season) stats one at a time
+# Armonk <- subset(nab1, site == "Armonk")
+# Armonk$Date <- as.Date(Armonk$Date, format = "%Y-%m-%d")
+# Armonk <- subset(Armonk, select = -site)
+# ArmonkPS <- calculate_ps(Armonk, method = "percentage", perc = 95)
+# ArmonkPS$site <- "Armonk"
+# 
+# Carrolton <- subset(nab1, site == "Carrolton")
+# Carrolton$Date <- as.Date(Carrolton$Date, format = "%Y-%m-%d")
+# Carrolton <- subset(Carrolton, select = -site)
+# CarroltonPS <- calculate_ps(Carrolton, method = "percentage", perc = 95)
+# CarroltonPS$site <- "Carrolton"
+# 
+# FlowerMound <- subset(nab1, site == "Flower Mound")
+# FlowerMound$Date <- as.Date(FlowerMound$Date, format = "%Y-%m-%d")
+# FlowerMound <- subset(FlowerMound, select = -site)
+# FlowerMoundPS <- calculate_ps(FlowerMound, method = "percentage", perc = 95)
+# FlowerMoundPS$site <- "Flower Mound"
+# 
+# Minneapolis <- subset(nab1, site == "Minneapolis")
+# Minneapolis$Date <- as.Date(Minneapolis$Date, format = "%Y-%m-%d")
+# Minneapolis <- subset(Minneapolis, select = -site)
+# MinneapolisPS <- calculate_ps(Minneapolis, method = "percentage", perc = 95)
+# MinneapolisPS$site <- "Minneapolis"
+# 
+# Springfield <- subset(nab1, site == "Springfield")
+# Springfield$Date <- as.Date(Springfield$Date, format = "%Y-%m-%d")
+# Springfield <- subset(Springfield, select = -site)
+# SpringfieldPS <- calculate_ps(Springfield, method = "percentage", perc = 95)
+# SpringfieldPS$site <- "Springfield"
+# 
+# Waterbury <- subset(nab1, site == "Waterbury")
+# Waterbury$Date <- as.Date(Waterbury$Date, format = "%Y-%m-%d")
+# Waterbury <- subset(Waterbury, select = -site)
+# WaterburyPS <- calculate_ps(Waterbury, method = "percentage", perc = 95)
+# WaterburyPS$site <- "Waterbury"
+# 
+# # paste all of the "sitePS" dfs back together into one df
+# nabPS <- rbind(ArmonkPS, CarroltonPS, FlowerMoundPS, MinneapolisPS, SpringfieldPS, WaterburyPS)
+# 
+# # drop unneeded columns
+# nabPS <- subset(nabPS, select = -(ln.ps:daysth))
+# 
+# # clean up unneeded files
+# rm(Armonk)
+# rm(ArmonkPS)
+# rm(Carrolton)
+# rm(CarroltonPS)
+# rm(FlowerMound)
+# rm(FlowerMoundPS)
+# rm(Minneapolis)
+# rm(MinneapolisPS)
+# rm(Springfield)
+# rm(SpringfieldPS)
+# rm(Waterbury)
+# rm(WaterburyPS)
 
 ####### load in and prepare NPN data ###############################################################
 #npn_raw <- read_csv("~/RProjects/DanK_analyses/200mibuffer_NNrecords_alltaxa_7-24-21.csv", guess_max = 672676)
@@ -164,25 +188,29 @@ npn <- npn_raw %>%
   dplyr::rename(site = NABStn, 
                 date = observation_date) 
 
-###############
 #expand to include missing dates
 date_station_grid_npn <- expand_grid(seq(min(npn$date), max(npn$date), by = '1 day'), unique(npn$site),
                                      unique(npn$taxon)) %>% 
   `colnames<-`(c("date", "site","taxon")) %>%
   filter(!is.na(site)) %>% 
-  ungroup()
+  ungroup() %>% 
+  mutate(phenophase_status = NA,
+         flow_prop = NA)
 
 # CALCULATE PROPORTION OF "YES" RECORDS FOR FLOWERING (npn_summary$mean_prop_flow)
-npn_summary <- npn %>% 
-  group_by(taxon, date, doy, date_noyr, s_year, site) %>% 
+#dk : leaving off on this section for the moment. need to figure out how to bring along no-observation days
+npn_summary <- 
+  bind_rows(date_station_grid_npn, npn) %>% 
+  arrange(taxon, site, s_year, date) %>% 
+  group_by(taxon, site, s_year, date, doy, date_noyr) %>% 
   dplyr::summarize(mean_flow = mean(phenophase_status),
                    mean_prop_flow = mean(flow_prop),
                    n_obs = as.numeric(n())) %>% 
   ungroup() %>% 
-  left_join(date_station_grid_npn, .) %>% 
+  #left_join(date_station_grid_npn, .) %>% 
   mutate(n_obs = case_when( is.na(n_obs) ~ 0,
-                            n_obs > 0 ~ n_obs))%>% 
-  arrange(taxon, site, s_year, date)
+                            n_obs > 0 ~ n_obs))
+
 
 # CALCULATES NUMBER OF NN OBS PER SEASON (YEAR?) - used for filtering out taxa w/few records later on in script
 npn_season_summary_nobs <- npn_summary %>% 
@@ -210,7 +238,7 @@ npn_join[c("mean_prop_flow_m_ma")][is.na(npn_join[c("mean_prop_flow_m_ma")])] <-
 #add cumulative sum field (by site*taxon*year)
 npn_join <- npn_join %>% 
   group_by(site, taxon, s_year) %>% 
-  arrange(date) %>% 
+  arrange(site, taxon, date) %>% 
   mutate(cum_mean_prop_flow_m_ma = cumsum(mean_prop_flow_m_ma))
 
 #sort by site, taxon, date - maybe not actually necessary
