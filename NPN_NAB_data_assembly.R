@@ -27,7 +27,7 @@ alnus_species_list <- c(62,63,319)
 betula_species_list <- c(97, 1439, 98, 430, 1850, 1339, 1851, 99, 1805)
 fraxinus_species_list <- c(74,872,873,75,1350)
 populus_species_list <- c(1361,320,976,977,1188,27,1481)
-quercus_species_list <-c(705,100,1365,757,1870,987,1690,1484,988,316,297,1485,1190,765,1486,
+quercus_species_list <- c(705,100,1365,757,1870,987,1690,1484,988,316,297,1485,1190,765,1486,
                          301,704,101,1691,1212,989,1366,102,1756,1213,1755,1487,1159,305)
 ulmus_species_list <- c(1192,1048,1049,1215,1216)
 
@@ -45,13 +45,24 @@ list_all_focal_taxa <- c(acer_species_list, alnus_species_list, betula_species_l
 
 ###download and process data #####################################
 npn_direct <- npn_download_status_data(
-  request_source = 'Daniel Katz, UT Austin',
+  request_source = 'Daniel Katz, UT Austin and/or Theresa Crimmins',
   species_ids = list_all_focal_taxa,
   years = c(as.character(2008:2021)), #years to include
-  phenophase_ids = c(501, 502,495, 503) #angiosperms: 501 == "Open flowers", 502 == "Pollen release (flowers)" #conifers: 495 ==  503 ==
+  phenophase_ids = c(501, 502,495, 503), #angiosperms: 501 == "Open flowers", 502 == "Pollen release (flowers)" #conifers: 495 ==  503 ==
+  additional_fields = c("Observed_Status_Conflict_Flag", "partner_group")
 )
 #names(npn_direct)
 
+npn_direct <- subset(npn_direct, observed_status_conflict_flag == "-9999")
+
+npn_direct <- filter(npn_direct, !(partner_group %in% c("CSU Chico NSCI 102", "SCMF Naturalists", 
+                                                        "Sycamore Canyon Wilderness Park - Riverside",
+                                                        "Marist College", "Sam Hughes Neighborhood Association",
+                                                        "UNCO BIO 111", "Maricopa Cooperative Extension",
+                                                        "Pima County Extension", "Lasell College",
+                                                        "UofL campus", "Ursinus College", "U of A Campus Arboretum",
+                                                        "RMC Campus Phenology", "SUNY Geneseo", "AZ Project WET")))
+                                      
 npn_flow <- filter(npn_direct, phenophase_id == 501 | phenophase_id == 495)
 
 # looks like flowering intensity value was only entered very rarely
@@ -131,8 +142,6 @@ NAB_coords_tmean$geometry <- NULL
 npn_active_flow <- left_join(npn_active_flow, NAB_coords_tmean) %>% 
   mutate(tmean_dif = tmean_NAB - tmean)
 
-
-
 ### export data to file (data exploration is next script) ##################################
-readr::write_csv(npn_active_flow, "C:/Users/dsk856/Box/texas/pheno/npn_common_anemo_active_flow.csv")
+readr::write_csv(npn_active_flow, "~/RProjects/NPN_NAB2/200mibuffer_8-23-21.csv")
 
