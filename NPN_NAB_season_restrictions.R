@@ -7,13 +7,15 @@
 # -assess correlations between NPN and NAB data 
 # -provide proof of concept for future continental-scale airborne pollen models
 #
-# current/potential project participants:
-# Dan Katz, Theresa Crimmins, Liz Vogt, Arie Managan, Claudia Brown, Ellen Denny, 
-# Shubhayu Saha, Ambarish (Rish) Vaidyanathan
+# current project participants:
+# Dan Katz, Theresa Crimmins, Liz Vogt, Shubhayu Saha
+# potential project participants: 
+# Arie Managan, Claudia Brown, Ellen Denny, Ambarish (Rish) Vaidyanathan
 #
 # This script is for data exploration and analyses
 # Note: One of the goals is to keep this as simple as possible;
 # full phenological models are a future project
+# comparison to health outcomes data is a future project
 ###########################################################################################
 # Changes in this version 
 # - calculate DOYs 2.5% and 97.% of total pollen count is reached; DOYs 2.5% and 97.5% of "open flowers" is reached
@@ -35,12 +37,9 @@ library(ggthemes)
 #library(MASS)
 #library(vcd) #install.packages('vcd')
 #library(AeRobiology)
-#library(reshape2) #dk: I'm probably going to update instances of reshape2 to dplyr/tidyr when I see them
 
 ### load in and prepare NAB data ###############################################################
-#nab_raw <- read_csv("~/RProjects/DanK_analyses/NAB_data/NAB_pollen_210621.csv", guess_max = 92013) 
-nab_raw <- read_csv("C:/Users/dsk856/Box/things for other people/NAB_NPN/NAB_pollen_210621.csv", guess_max = 92013) 
-#dk: we should probably switch over to the 'here' package for this; in the meantime, we can just comment/uncomment this line
+nab_raw <- read_csv("data/NAB_pollen_210621.csv", guess_max = 92013) 
 
 ### remove Denver rows since no meaningful data in there #####
 nab_raw <- filter(nab_raw, site != "Denver") %>% 
@@ -86,8 +85,7 @@ nab_seasons <- nab %>% left_join(., nab_focal_season_max) %>%
   
 
 ####### load in and prepare NPN data ###############################################################
-#npn_raw <- read_csv("~/RProjects/DanK_analyses/200mibuffer_NNrecords_alltaxa_7-24-21.csv", guess_max = 672676)
-npn_raw <- read_csv("C:/Users/dsk856/Box/things for other people/NAB_NPN/200mibuffer_NNrecords_alltaxa_7-24-21.csv", guess_max = 672676)
+npn_raw <- read_csv("data/200mibuffer_NNrecords_alltaxa_7-24-21.csv", guess_max = 672676)
 
 #dk: we need to include a QA/QC process for NPN data. There's some egregiously wrong info that is throwing off season calculations
 # one option: define approximate season for each taxon/location based on literature and then remove 'flowering' observations
