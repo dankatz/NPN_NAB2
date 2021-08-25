@@ -2,3 +2,6 @@
 .Rhistory
 .RData
 .Ruserdata
+ 
+data/example_file_name.csv
+data/NAB_pollen_210621.csv
