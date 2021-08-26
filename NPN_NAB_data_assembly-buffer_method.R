@@ -114,20 +114,25 @@ npn_active_flow3$geometry <- NULL
 npn_active_flow <- left_join(npn_active_flow, npn_active_flow3)
 
 ### extract mean annual air temperature for each selected NAB site #####################################
+# note: if we wanted to do this for Cupressaceae, that's covered by my most recent NAB data
+# request
 
-#extract temperature for the NAB stations [and add it to active flowers dataframe - NOT SURE ABOUT THIS STEP]
-########## IF WE CAN GET MORE NAB STATIONS - NEED TO ADD THEIR LAT-LONG INFO HERE ################
-NAB_coords <- data.frame(station = c("Armonk", "Waterbury", "Flower Mound", "Minneapolis", "Springfield", "Carrolton"),
-                         lat = c(41.1299814, 41.5493, 33.0439926,  44.9749718, 40.7002184, 33.0439971),	
-                         long = c(-73.7310037, -73.068176, -97.0780927, -93.2756491, -74.3244188, -96.8341116)) %>% 
+#extract temperature for the NAB stations and add it to active flowers dataframe
+NAB_coords <- data.frame(station = c("Armonk", "Atlanta", "Waterbury", "Carrolton", "Flower Mound", "Minneapolis", "Springfield", "Waterbury"),
+                         lat = c(41.1299814, 33.974,	41.5493, 33.0439926, 33.0345517, 44.9749718, 40.7002184, 41.5496514),	
+                         long = c(-73.7310037, -84.5493, -73.0659, -96.8341063, -97.0980874, -93.2756438, -74.3244135, -73.0681707)) %>% 
   st_as_sf(coords = c("long", "lat"), crs = 4326) 
 
-tmean_data_NAB <- unlist(raster::extract(x = tmean_rast2, 
+tmean_data_NAB <- unlist(raster::extract(x = tmean_rast2, #matrix(c(NAB_tx_coords$long, NAB_tx_coords$lat), ncol = 2), 
                                          y = NAB_coords )) %>% as.data.frame() 
-
-NAB_coords_tmean <- NAB_coords %>% mutate(tmean_NAB = unlist(tmean_data_NAB)) 
-
+NAB_coords_tmean <- NAB_coords %>% mutate(tmean_NAB = unlist(tmean_data_NAB)) %>% 
+  rename(NAB_station = station)
 NAB_coords_tmean$geometry <- NULL
+
+### THIS BIT NOT WORKING - 
+# npn_active_flow <- left_join(npn_active_flow, NAB_coords_tmean) %>% 
+#  mutate(tmean_dif = tmean_NAB - tmean)
+
 
 ### calculate geographic distance from each NPN site to each NAB site #########
 ########## IF WE CAN GET MORE NAB STATIONS - NEED TO ADD THEIR STUFF INFO HERE ################
@@ -181,10 +186,10 @@ rm(npn_Carrolton)
 
 ##### ADD IN TMEAN VALUE FOR NAB STATIONS, CALCULATE tmean_dif
 
-npn_buffer_ok <- left_join(npn_buffer_ok, NAB_coords_tmean, by = c("NABStn" = "station"))
+npn_buffer_ok <- left_join(npn_buffer_ok, NAB_coords_tmean, by = c("NABStn" = "NAB_station"))
 npn_buffer_ok$tmean_dif <- (npn_buffer_ok$tmean_NAB - npn_buffer_ok$tmean)
 
 
 ### export data to file (data exploration is next script) ##################################
-readr::write_csv(npn_active_flow, "data/200mibuffer-inclusive.csv")
+readr::write_csv(npn_buffer_ok, "data/200mibuffer-inclusive.csv")
 
