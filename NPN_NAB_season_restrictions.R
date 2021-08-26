@@ -1,23 +1,23 @@
 # Original script by Dan Katz
 # modifications by T Crimmins
-# 8-23-21
+# 8-26-21
 #
 ### General information ####################################################################
 # Project goals: 
 # -assess correlations between NPN and NAB data 
 # -provide proof of concept for future continental-scale airborne pollen models
 #
-# current/potential project participants:
-# Dan Katz, Theresa Crimmins, Liz Vogt, Arie Managan, Claudia Brown, Ellen Denny, 
-# Shubhayu Saha, Ambarish (Rish) Vaidyanathan
+# current project participants:
+# Dan Katz, Theresa Crimmins, Liz Vogt, Shubhayu Saha
+# potential project participants: 
+# Arie Managan, Claudia Brown, Ellen Denny, Ambarish (Rish) Vaidyanathan
 #
 # This script is for data exploration and analyses
 # Note: One of the goals is to keep this as simple as possible;
 # full phenological models are a future project
+# comparison to health outcomes data is a future project
 ###########################################################################################
-# Changes in this version 
-# 
-#
+
 ### set up working environment #############################################################
 rm(list=ls())
 library(dplyr)
@@ -35,16 +35,13 @@ library(ggpubr)
 #library(MASS)
 #library(vcd) #install.packages('vcd')
 #library(AeRobiology)
-#library(reshape2) #dk: I'm probably going to update instances of reshape2 to dplyr/tidyr when I see them
 
 ### load in and prepare NAB data ###############################################################
-nab_raw <- read_csv("~/RProjects/DanK_analyses/NAB_data/NAB_pollen_210621.csv", guess_max = 92013) 
-#nab_raw <- read_csv("C:/Users/dsk856/Box/things for other people/NAB_NPN/NAB_pollen_210621.csv", guess_max = 92013) 
-#dk: we should probably switch over to the 'here' package for this; in the meantime, we can just comment/uncomment this line
+nab_raw <- read_csv("data/NAB_pollen_210621.csv", guess_max = 92013) 
 
 ### remove Denver rows since no meaningful data in there #####
 nab_raw <- filter(nab_raw, site != "Denver") %>% 
-            rename(dates = Date)
+  rename(dates = Date)
 
 #expand to include missing dates
 # date_station_grid is a dataframe with a row for each date in the record for each station
@@ -68,26 +65,21 @@ nab <- left_join(date_station_grid, nab_raw) %>%
 ## create season definitions based on pollen integral =================================================
 #total pollen measured per site/taxon/year
 nab_focal_season_max <- nab %>% 
-              group_by(site, taxon, years) %>% 
-              summarize(sum_pol = sum(pol, na.rm = TRUE))
-            
+  group_by(site, taxon, years) %>% 
+  summarize(sum_pol = sum(pol, na.rm = TRUE))
+
 #position in pollen season
 nab_seasons <- nab %>% left_join(., nab_focal_season_max) %>% 
-              group_by(site, taxon, years) %>% 
-              mutate(cumu_pol = cumsum(replace_na(pol, 0)),  #cumulative sum of pollen #putting NAs as 0s for calculating seasonal sums 
-                     cumu_pol_r = cumu_pol/sum_pol,          #relative sum of pollen
-                     in_95season = case_when(cumu_pol_r < 0.025 ~ "not in 95% season", #is the observation in the 95% pollen season?
-                                             cumu_pol_r >= 0.025 & cumu_pol_r <= 0.975~ "in 95% season",
-                                             cumu_pol_r > 0.975 ~ "not in 95% season"))  
-  
-####### load in and prepare NPN data ###############################################################
-npn_raw <- read_csv("~/RProjects/NPN_NAB2/200mibuffer_8-23-21.csv", guess_max = 672676)
-#npn_raw <- read_csv("C:/Users/dsk856/Box/things for other people/NAB_NPN/200mibuffer_NNrecords_alltaxa_7-24-21.csv", guess_max = 672676)
+  group_by(site, taxon, years) %>% 
+  mutate(cumu_pol = cumsum(replace_na(pol, 0)),  #cumulative sum of pollen #putting NAs as 0s for calculating seasonal sums 
+         cumu_pol_r = cumu_pol/sum_pol,          #relative sum of pollen
+         in_95season = case_when(cumu_pol_r < 0.025 ~ "not in 95% season", #is the observation in the 95% pollen season?
+                                 cumu_pol_r >= 0.025 & cumu_pol_r <= 0.975~ "in 95% season",
+                                 cumu_pol_r > 0.975 ~ "not in 95% season"))  
 
-#dk: we need to include a QA/QC process for NPN data. There's some egregiously wrong info that is throwing off season calculations
-# one option: define approximate season for each taxon/location based on literature and then remove 'flowering' observations
-# that aren't in that period. We might also want to consider removing outliers or perhaps even all data from observers that made
-# clearly erroneous observations. Theresa, what do you think?
+####### load in and prepare NPN data ###############################################################
+#npn_raw <- read_csv("data/200mibuffer_NNrecords_alltaxa_7-24-21.csv", guess_max = 672676)
+npn_raw <- read_csv("data/200mibuffer-inclusive.csv", guess_max = 672676)
 
 filt_tmean_dif <- 2 #filter NPN observations that are within X degrees celsius of the nearest NAB station
 
@@ -114,7 +106,7 @@ npn <- npn_raw %>%
                            TRUE ~ taxon)) %>% 
   dplyr::rename(dates = observation_date,
                 site = NAB_station
-                ) 
+  ) 
 
 #expand to include missing dates
 date_station_grid_npn <- expand_grid(seq(min(npn$dates), max(npn$dates), by = '1 day'), unique(npn$site),
@@ -219,8 +211,8 @@ nabnpn %>%
   ggplot(aes(x = mean_prop_flow_m_ma, y = pol + 1)) + 
   geom_point(alpha = 0.5) + facet_grid(site~taxon) + theme_bw()  + scale_y_log10() +
   geom_smooth(method = "lm") +
-    stat_poly_eq(aes(label =  paste(stat(rr.label), stat(p.value.label), sep = "*\", \"*")),
-                 formula = formula, parse = TRUE, label.x = .9, color = "black")
+  stat_poly_eq(aes(label =  paste(stat(rr.label), stat(p.value.label), sep = "*\", \"*")),
+               formula = formula, parse = TRUE, label.x = .9, color = "black")
 
 #comparing nab and npn data - Spearman's  - BUT - the "scale_y_log10" is still in here, do we need to remove that??
 formula <- y ~ x 
@@ -232,5 +224,3 @@ nabnpn %>%
   geom_point(alpha = 0.5) + facet_grid(site~taxon) + theme_bw()  + scale_y_log10() +
   geom_smooth(method = "lm") + 
   stat_cor(method = "spearman")
-
-
