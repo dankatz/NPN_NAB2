@@ -19,7 +19,7 @@
 ###########################################################################################
 
 ### set up working environment #############################################################
-rm(list=ls())
+#rm(list=ls())
 library(dplyr)
 library(tidyr)
 library(lubridate)
@@ -59,12 +59,16 @@ nab <- left_join(date_station_grid, nab_raw) %>%
                         Juglans, Liquidambar, Myrica, Pinaceae, Populus, Platanus, Quercus, Salix, Tilia, Tsuga, Ulmus),
                names_to = "taxon", values_to = "pol") %>% 
   arrange(site, taxon, dates) %>% 
-  mutate(years = year(dates))
+  mutate(years = year(dates),
+         ydays = yday(dates))
 
-# rescale pollen counts to 0-1 for each site*taxon*year
+# rescale pollen counts to 0-1 
 nab <- nab %>%
   group_by(site, taxon, years) %>%
-  mutate(polpct = scales::rescale(pol, to=c(0,1)))
+  mutate(polpct = scales::rescale(pol, to=c(0,1))) %>%  #for each site*taxon*year
+  group_by(site, taxon) %>% 
+  mutate(polpct_allyrs = scales::rescale(pol, to=c(0,1))) #for each site*taxon (across years)
+  #ggplot(nab, aes(x = polpct_allyrs)) + geom_histogram() + theme_bw() + facet_grid(taxon~site) #graphical check
 
 ## create season definitions based on pollen integral =================================================
 #total pollen measured per site/taxon/year
@@ -72,10 +76,15 @@ nab <- nab %>%
 #  group_by(site, taxon, years) %>% 
 #  summarize(sum_pol = sum(pol, na.rm = TRUE))
 
-#total pollen measured per site/taxon/year - using scaled pollen values
+# #total pollen measured per site/taxon/year - using scaled pollen values
+# nab_focal_season_max <- nab %>% 
+#   group_by(site, taxon, years) %>% 
+#   summarize(sum_pctpol = sum(polpct, na.rm = TRUE))
+
+#total pollen measured per site/taxon
 nab_focal_season_max <- nab %>% 
-  group_by(site, taxon, years) %>% 
-  summarize(sum_pctpol = sum(polpct, na.rm = TRUE))
+  group_by(site, taxon) %>% 
+  summarize(sum_pol = sum(pol, na.rm = TRUE))
 
 #position in pollen season
 #nab_seasons <- nab %>% left_join(., nab_focal_season_max) %>% 
@@ -86,14 +95,25 @@ nab_focal_season_max <- nab %>%
 #                                 cumu_pol_r >= 0.025 & cumu_pol_r <= 0.975~ "in 95% season",
 #                                 cumu_pol_r > 0.975 ~ "not in 95% season"))  
 
-#position in pollen season - using scaled pollen values
+# #position in pollen season - using scaled pollen values
+# nab_seasons <- nab %>% left_join(., nab_focal_season_max) %>% 
+#   group_by(site, taxon, years) %>% 
+#   mutate(cumu_pol = cumsum(replace_na(polpct, 0)),  #cumulative sum of pollen #putting NAs as 0s for calculating seasonal sums 
+#          cumu_pol_r = cumu_pol/sum_pctpol,          #relative sum of pollen
+#          in_95season = case_when(cumu_pol_r < 0.025 ~ "not in 95% season", #is the observation in the 95% pollen season?
+#                                  cumu_pol_r >= 0.025 & cumu_pol_r <= 0.975~ "in 95% season",
+#                                  cumu_pol_r > 0.975 ~ "not in 95% season"))  
+
+#position in pollen season - using sum of pollen /taxon/site across all years
 nab_seasons <- nab %>% left_join(., nab_focal_season_max) %>% 
-  group_by(site, taxon, years) %>% 
-  mutate(cumu_pol = cumsum(replace_na(polpct, 0)),  #cumulative sum of pollen #putting NAs as 0s for calculating seasonal sums 
-         cumu_pol_r = cumu_pol/sum_pctpol,          #relative sum of pollen
+  group_by(site, taxon) %>% 
+  arrange(site, taxon, ydays, years ) %>% 
+  mutate(cumu_pol = cumsum(replace_na(pol, 0)),  #cumulative sum of pollen #putting NAs as 0s for calculating seasonal sums 
+         cumu_pol_r = cumu_pol/sum_pol,          #relative sum of pollen
          in_95season = case_when(cumu_pol_r < 0.025 ~ "not in 95% season", #is the observation in the 95% pollen season?
                                  cumu_pol_r >= 0.025 & cumu_pol_r <= 0.975~ "in 95% season",
                                  cumu_pol_r > 0.975 ~ "not in 95% season"))  
+
 
 ####### load in and prepare NPN data ###############################################################
 #npn_raw <- read_csv("data/200mibuffer_8-12-21.csv", guess_max = 672676)
@@ -173,12 +193,13 @@ npn_join <-  left_join(npn_summary, npn_season_summary_nobs) %>%
 npn_join[c("mean_prop_flow_m_ma")][is.na(npn_join[c("mean_prop_flow_m_ma")])] <- 0 
 
 npn_focal_season_integral <- npn_join %>% 
-  group_by(site, taxon, years) %>% 
+  group_by(site, taxon) %>% 
   summarize(sum_mean_prop_flow_m_ma = sum(mean_prop_flow_m_ma, na.rm = TRUE))
 
 #add cumulative sum field (by site*taxon*year)
 npn_seasons <- npn_join %>% left_join(., npn_focal_season_integral) %>% 
-  group_by(site, taxon, years) %>% 
+  group_by(site, taxon) %>% 
+  arrange(site, taxon, doy) %>% 
   mutate(cumu_flow = cumsum(replace_na(mean_prop_flow_m_ma, 0)),  #cumulative sum of pollen #putting NAs as 0s for calculating seasonal sums 
          cumu_flow_r = cumu_flow/sum_mean_prop_flow_m_ma,          #relative sum of pollen
          in_npn_95season = case_when(cumu_flow_r < 0.025 ~ "not in 95% season", #is the observation in the 95% pollen season?
