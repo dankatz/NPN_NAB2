@@ -21,6 +21,7 @@ library(rnpn)
 library(sf)
 library(geosphere)
 library(prism)
+library(readr)
 
 ### select a few top anemophilous taxa from NPN #####################################
 #anemophilous angiosperms
@@ -64,10 +65,11 @@ npn_direct <- filter(npn_direct, !(partner_group %in% c("CSU Chico NSCI 102", "S
                                                         "Pima County Extension", "Lasell College",
                                                         "UofL campus", "Ursinus College", "U of A Campus Arboretum",
                                                         "RMC Campus Phenology", "SUNY Geneseo", "AZ Project WET")))
-                                      
+#write_csv(npn_direct, "data/npn_direct_210830.csv") #keeping a local copy to avoid having to re-download data
+#npn_direct <- read_csv("data/npn_direct_210830.csv")
 npn_flow <- filter(npn_direct, phenophase_id == 501 | phenophase_id == 495)
 
-# looks like flowering intensity value was only entered very rarely - TMC: actually it's around 82%
+# flowering intensity value (which is entered about 82% of the time)
 npn_active_flow <- npn_flow %>%
   filter(phenophase_status != -1) %>% #removing observations where the observer was unsure whether the phenophase was occurring
   mutate(flow_prop = case_when(
@@ -94,6 +96,7 @@ npn_active_flow_sf <- npn_active_flow %>%
 
 
 prism_set_dl_dir("~/RProjects/DanK_analyses/prism")
+#prism_set_dl_dir("C:/Users/dsk856/Documents/prismtmp")
 get_prism_normals(type = "tmean", resolution = "4km", annual = TRUE)
 
 #choosing which rasters need to be included
@@ -135,7 +138,7 @@ NAB_coords_tmean$geometry <- NULL
 
 
 ### calculate geographic distance from each NPN site to each NAB site #########
-########## IF WE CAN GET MORE NAB STATIONS - NEED TO ADD THEIR STUFF INFO HERE ################
+########## IF WE CAN GET MORE NAB STATIONS - NEED TO ADD THEIR INFO HERE ################
 
 # calculate distance from each NAB stn and each NN obs station one at a time, filter by buffer, and append
 
