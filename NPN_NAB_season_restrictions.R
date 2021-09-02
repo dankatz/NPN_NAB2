@@ -61,24 +61,42 @@ nab <- left_join(date_station_grid, nab_raw) %>%
   arrange(site, taxon, dates) %>% 
   mutate(years = year(dates))
 
+# rescale pollen counts to 0-1 for each site*taxon*year
+nab <- nab %>%
+  group_by(site, taxon, years) %>%
+  mutate(polpct = scales::rescale(pol, to=c(0,1)))
 
 ## create season definitions based on pollen integral =================================================
 #total pollen measured per site/taxon/year
+#nab_focal_season_max <- nab %>% 
+#  group_by(site, taxon, years) %>% 
+#  summarize(sum_pol = sum(pol, na.rm = TRUE))
+
+#total pollen measured per site/taxon/year - using scaled pollen values
 nab_focal_season_max <- nab %>% 
   group_by(site, taxon, years) %>% 
-  summarize(sum_pol = sum(pol, na.rm = TRUE))
+  summarize(sum_pctpol = sum(polpct, na.rm = TRUE))
 
 #position in pollen season
+#nab_seasons <- nab %>% left_join(., nab_focal_season_max) %>% 
+#  group_by(site, taxon, years) %>% 
+#  mutate(cumu_pol = cumsum(replace_na(pol, 0)),  #cumulative sum of pollen #putting NAs as 0s for calculating seasonal sums 
+#         cumu_pol_r = cumu_pol/sum_pol,          #relative sum of pollen
+#         in_95season = case_when(cumu_pol_r < 0.025 ~ "not in 95% season", #is the observation in the 95% pollen season?
+#                                 cumu_pol_r >= 0.025 & cumu_pol_r <= 0.975~ "in 95% season",
+#                                 cumu_pol_r > 0.975 ~ "not in 95% season"))  
+
+#position in pollen season - using scaled pollen values
 nab_seasons <- nab %>% left_join(., nab_focal_season_max) %>% 
   group_by(site, taxon, years) %>% 
-  mutate(cumu_pol = cumsum(replace_na(pol, 0)),  #cumulative sum of pollen #putting NAs as 0s for calculating seasonal sums 
-         cumu_pol_r = cumu_pol/sum_pol,          #relative sum of pollen
+  mutate(cumu_pol = cumsum(replace_na(polpct, 0)),  #cumulative sum of pollen #putting NAs as 0s for calculating seasonal sums 
+         cumu_pol_r = cumu_pol/sum_pctpol,          #relative sum of pollen
          in_95season = case_when(cumu_pol_r < 0.025 ~ "not in 95% season", #is the observation in the 95% pollen season?
                                  cumu_pol_r >= 0.025 & cumu_pol_r <= 0.975~ "in 95% season",
                                  cumu_pol_r > 0.975 ~ "not in 95% season"))  
 
 ####### load in and prepare NPN data ###############################################################
-#npn_raw <- read_csv("data/200mibuffer_NNrecords_alltaxa_7-24-21.csv", guess_max = 672676)
+#npn_raw <- read_csv("data/200mibuffer_8-12-21.csv", guess_max = 672676)
 npn_raw <- read_csv("data/200mibuffer-inclusive.csv", guess_max = 672676)
 
 filt_tmean_dif <- 2 #filter NPN observations that are within X degrees celsius of the nearest NAB station
@@ -105,7 +123,7 @@ npn <- npn_raw %>%
                            genus == "Abies" ~ "Pinaceae",
                            TRUE ~ taxon)) %>% 
   dplyr::rename(dates = observation_date,
-                site = NAB_station
+                site = NABStn
   ) 
 
 #expand to include missing dates
@@ -190,7 +208,7 @@ nabnpn %>% dplyr::select(site, taxon, years, nobs_yes_per_season) %>% distinct()
 
 #visualize npn data
 nabnpn %>% 
-  filter(site == "Armonk") %>% 
+  #filter(site == "Armonk") %>% 
   filter(nobs_yes_per_season > 50) %>% 
   #filter(in_npn_95season == "in 95% season") %>% 
   ggplot(aes(x = doy, y = mean_prop_flow_m_ma, group = as.factor(years),
@@ -198,6 +216,7 @@ nabnpn %>%
 
 #visualize nab data
 nabnpn %>% 
+  filter(site == "Armonk") %>% 
   filter(sum_pol > 200) %>% 
   ggplot(aes(x = doy, y = pol + 1, group = as.factor(years),
              color = in_pol95season)) + geom_point() + facet_grid(site~taxon) + theme_bw()  + scale_y_log10()
@@ -214,6 +233,18 @@ nabnpn %>%
   stat_poly_eq(aes(label =  paste(stat(rr.label), stat(p.value.label), sep = "*\", \"*")),
                formula = formula, parse = TRUE, label.x = .9, color = "black")
 
+#comparing nab and npn data - Pearson's - using scaled pollen values
+formula <- y ~ x 
+nabnpn %>% 
+  # filter(sum_pctpol > 200) %>% 
+  filter(nobs_yes_per_season > 50) %>% 
+  filter(in_npn_95season == "in 95% season" & in_pol95season == "in 95% season") %>% 
+  ggplot(aes(x = mean_prop_flow_m_ma, y = polpct + 1)) + 
+  geom_point(alpha = 0.5) + facet_grid(site~taxon) + theme_bw() # + scale_y_log10() +
+geom_smooth(method = "lm") +
+  stat_poly_eq(aes(label =  paste(stat(rr.label), stat(p.value.label), sep = "*\", \"*")),
+               formula = formula, parse = TRUE, label.x = .9, color = "black")
+
 #comparing nab and npn data - Spearman's  - BUT - the "scale_y_log10" is still in here, do we need to remove that??
 formula <- y ~ x 
 nabnpn %>% 
@@ -221,6 +252,17 @@ nabnpn %>%
   filter(nobs_yes_per_season > 50) %>% 
   filter(in_npn_95season == "in 95% season" & in_pol95season == "in 95% season") %>% 
   ggplot(aes(x = mean_prop_flow_m_ma, y = pol + 1)) + 
+  geom_point(alpha = 0.5) + facet_grid(site~taxon) + theme_bw()  + scale_y_log10() +
+  geom_smooth(method = "lm") + 
+  stat_cor(method = "spearman")
+
+#comparing nab and npn data - Spearman's - using scaled pollen values
+formula <- y ~ x 
+nabnpn %>% 
+  #  filter(sum_pol > 200) %>% 
+  filter(nobs_yes_per_season > 50) %>% 
+  filter(in_npn_95season == "in 95% season" & in_pol95season == "in 95% season") %>% 
+  ggplot(aes(x = mean_prop_flow_m_ma, y = polpct + 1)) + 
   geom_point(alpha = 0.5) + facet_grid(site~taxon) + theme_bw()  + scale_y_log10() +
   geom_smooth(method = "lm") + 
   stat_cor(method = "spearman")
