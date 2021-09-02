@@ -190,21 +190,29 @@ npn_join <-  left_join(npn_summary, npn_season_summary_nobs) %>%
 
 ##### figure out DOY for 2.5% and 97.% of "open flowers" #############################################
 # fill in any NAs in mean_prop_flow_m_ma with 0.0
-npn_join[c("mean_prop_flow_m_ma")][is.na(npn_join[c("mean_prop_flow_m_ma")])] <- 0 
+npn_join[c("mean_prop_flow")][is.na(npn_join[c("mean_prop_flow")])] <- 0 
 
 npn_focal_season_integral <- npn_join %>% 
   group_by(site, taxon) %>% 
-  summarize(sum_mean_prop_flow_m_ma = sum(mean_prop_flow_m_ma, na.rm = TRUE))
+  summarize(sum_mean_prop_flow = sum(mean_prop_flow, na.rm = TRUE))
 
-#add cumulative sum field (by site*taxon*year)
+#add cumulative sum field (by site*taxon*year) and define 95% season
+#switched over to using the proportion of flowers that were open to define season; 
+#not using interpolated data or NAs in season definitions
 npn_seasons <- npn_join %>% left_join(., npn_focal_season_integral) %>% 
   group_by(site, taxon) %>% 
   arrange(site, taxon, doy) %>% 
-  mutate(cumu_flow = cumsum(replace_na(mean_prop_flow_m_ma, 0)),  #cumulative sum of pollen #putting NAs as 0s for calculating seasonal sums 
-         cumu_flow_r = cumu_flow/sum_mean_prop_flow_m_ma,          #relative sum of pollen
+  #filter(nobs_yes_per_season > 50) %>% 
+  mutate(cumu_flow = cumsum(replace_na(mean_prop_flow, 0)),  #cumulative sum of pollen #putting NAs as 0s for calculating seasonal sums 
+         cumu_flow_r = cumu_flow/sum_mean_prop_flow,          #relative sum of pollen
          in_npn_95season = case_when(cumu_flow_r < 0.025 ~ "not in 95% season", #is the observation in the 95% pollen season?
                                      cumu_flow_r >= 0.025 & cumu_flow_r <= 0.975~ "in 95% season",
-                                     cumu_flow_r > 0.975 ~ "not in 95% season"))  
+                                     cumu_flow_r > 0.975 ~ "not in 95% season")) %>% 
+  #manual correction for Cupressaceae season straddling the end of the year
+  mutate(in_npn_95season = case_when(taxon == "Cupressaceae" & site == "Carrolton" & doy < 145 ~ "in 95% season", 
+                                     taxon == "Cupressaceae" & site == "Carrolton" & doy >= 145 & doy < 345~ "not in 95% season",
+                                     taxon == "Cupressaceae" & site == "Carrolton" & doy >= 345 ~ "in 95% season",
+                                     TRUE ~ in_npn_95season))
 
 ### merge NAB & NPN ####################################################################
 
@@ -216,16 +224,16 @@ nabnpn <- left_join(nab_seasons_join, npn_seasons)
 
 ### data exploration ##################################################################
 
-#season summaries
-test <- nabnpn %>% dplyr::select(site, taxon, years, sum_pol) %>% distinct() 
-
-#nab data richness
-nabnpn %>% dplyr::select(site, taxon, years, sum_pol) %>% distinct() %>% 
-  ggplot(aes(x= years, y = sum_pol))+ geom_point() + facet_grid(site~taxon) + theme_bw() + scale_y_log10()
-
-#npn data richness
-nabnpn %>% dplyr::select(site, taxon, years, nobs_yes_per_season) %>% distinct() %>% 
-  ggplot(aes(x= years, y = nobs_yes_per_season))+ geom_point() + facet_grid(site~taxon) + theme_bw() + scale_y_log10()
+# #season summaries
+# nabnpn %>% dplyr::select(site, taxon, years, sum_pol) %>% distinct() 
+# 
+# #nab data richness
+# nabnpn %>% dplyr::select(site, taxon, years, sum_pol) %>% distinct() %>% 
+#   ggplot(aes(x= years, y = sum_pol))+ geom_point() + facet_grid(site~taxon) + theme_bw() + scale_y_log10()
+# 
+# #npn data richness
+# nabnpn %>% dplyr::select(site, taxon, years, nobs_yes_per_season) %>% distinct() %>% 
+#   ggplot(aes(x= years, y = nobs_yes_per_season))+ geom_point() + facet_grid(site~taxon) + theme_bw() + scale_y_log10()
 
 #visualize npn data
 nabnpn %>% 
@@ -233,7 +241,7 @@ nabnpn %>%
   filter(nobs_yes_per_season > 50) %>% 
   #filter(in_npn_95season == "in 95% season") %>% 
   ggplot(aes(x = doy, y = mean_prop_flow_m_ma, group = as.factor(years),
-             color = in_npn_95season)) + geom_line() + facet_grid(site~taxon) + theme_bw() 
+             color = in_npn_95season)) + geom_point() + facet_grid(site~taxon) + theme_bw() 
 
 #visualize nab data
 nabnpn %>% 
@@ -261,8 +269,8 @@ nabnpn %>%
   filter(nobs_yes_per_season > 50) %>% 
   filter(in_npn_95season == "in 95% season" & in_pol95season == "in 95% season") %>% 
   ggplot(aes(x = mean_prop_flow_m_ma, y = polpct + 1)) + 
-  geom_point(alpha = 0.5) + facet_grid(site~taxon) + theme_bw() # + scale_y_log10() +
-geom_smooth(method = "lm") +
+  geom_point(alpha = 0.5) + facet_grid(site~taxon) + theme_bw() + #  scale_y_log10() +
+  geom_smooth(method = "lm") +
   stat_poly_eq(aes(label =  paste(stat(rr.label), stat(p.value.label), sep = "*\", \"*")),
                formula = formula, parse = TRUE, label.x = .9, color = "black")
 
