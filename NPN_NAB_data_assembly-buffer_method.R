@@ -50,24 +50,61 @@ list_all_focal_taxa <- c(acer_species_list, alnus_species_list, betula_species_l
 npn_direct <- npn_download_status_data(
   request_source = 'Daniel Katz, UT Austin and/or Theresa Crimmins',
   species_ids = list_all_focal_taxa,
-  years = c(as.character(2008:2021)), #years to include
+  years = c(as.character(2009:2021)), #years to include
   phenophase_ids = c(501, 502,495, 503), #angiosperms: 501 == "Open flowers", 502 == "Pollen release (flowers)" #conifers: 495 ==  503 ==
   additional_fields = c("Observed_Status_Conflict_Flag", "partner_group")
 )
 #names(npn_direct)
 
-npn_direct <- subset(npn_direct, observed_status_conflict_flag == "-9999")
+#npn_direct <- subset(npn_direct, observed_status_conflict_flag == "-9999")
 
-npn_direct <- filter(npn_direct, !(partner_group %in% c("CSU Chico NSCI 102", "SCMF Naturalists", 
-                                                        "Sycamore Canyon Wilderness Park - Riverside",
-                                                        "Marist College", "Sam Hughes Neighborhood Association",
-                                                        "UNCO BIO 111", "Maricopa Cooperative Extension",
-                                                        "Pima County Extension", "Lasell College",
-                                                        "UofL campus", "Ursinus College", "U of A Campus Arboretum",
-                                                        "RMC Campus Phenology", "SUNY Geneseo", "AZ Project WET")))
+#npn_direct <- filter(npn_direct, !(partner_group %in% c("CSU Chico NSCI 102", "SCMF Naturalists", 
+#                                                        "Sycamore Canyon Wilderness Park - Riverside",
+#                                                        "Marist College", "Sam Hughes Neighborhood Association",
+#                                                        "UNCO BIO 111", "Maricopa Cooperative Extension",
+#                                                        "Pima County Extension", "Lasell College",
+#                                                       "UofL campus", "Ursinus College", "U of A Campus Arboretum",
+#                                                        "RMC Campus Phenology", "SUNY Geneseo", "AZ Project WET")))
+
+# get total records per site
+sitetotals <- npn_direct %>% 
+              group_by(site_id) %>%
+              dplyr::summarise(n=n())
+sitetotals <- as.data.frame(sitetotals)
+
+# filter out observations with conflict flags
+conflict <- npn_direct[which(npn_direct$observed_status_conflict_flag %in% c("MultiObserver-StatusConflict", "OneObserver-StatusConflict")),]  
+
+# use that to get total conflicts per site
+conflict_totals <- conflict %>% 
+              group_by(site_id) %>%
+              dplyr::summarise(nflag=n())
+conflict_totals <- as.data.frame(conflict_totals)
+
+# merge the total records and total conflicts (replace NAs with zeroes for sites
+# with no conflicts)
+hi_conflict <- merge(conflict_totals, sitetotals, by="site_id", all=TRUE)
+hi_conflict[is.na(hi_conflict)] <- 0
+
+# calculate percentage of conflict records
+hi_conflict$percentage <- hi_conflict$nflag/hi_conflict$n*100
+# un-comment the next two lines for a histogram of conflicts per site... 
+#hist(hi_conflict$percentage, xlab="Percentage conflict records", 
+#     ylab="Number of sites", main="Frequency of conflicts per site")
+
+# identify sites for which conflict records make up more than 5 percent of total
+# records
+lowconflict_sites <- hi_conflict[which(hi_conflict$percentage<=5),]
+lowconflict_sites <- as.data.frame(lowconflict_sites[,1])
+names(lowconflict_sites) <- "site_id"
+
+# remove the high-conflict sites from the previously filtered data 
+# (with single conflict flags removed) to see the difference... 
+npn_direct_flag <- merge(npn_direct, lowconflict_sites, by="site_id")
+
 #write_csv(npn_direct, "data/npn_direct_210830.csv") #keeping a local copy to avoid having to re-download data
 #npn_direct <- read_csv("data/npn_direct_210830.csv")
-npn_flow <- filter(npn_direct, phenophase_id == 501 | phenophase_id == 495)
+npn_flow <- filter(npn_direct_flag, phenophase_id == 501 | phenophase_id == 495)
 
 # flowering intensity value (which is entered about 82% of the time)
 npn_active_flow <- npn_flow %>%
