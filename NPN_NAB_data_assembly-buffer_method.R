@@ -48,7 +48,7 @@ list_all_focal_taxa <- c(acer_species_list, alnus_species_list, betula_species_l
 
 ###download and process data #####################################
 npn_direct <- npn_download_status_data(
-  request_source = 'Daniel Katz, UT Austin and/or Theresa Crimmins',
+  request_source = 'Daniel Katz, Cornell and/or Theresa Crimmins',
   species_ids = list_all_focal_taxa,
   years = c(as.character(2009:2021)), #years to include
   phenophase_ids = c(501, 502,495, 503), #angiosperms: 501 == "Open flowers", 502 == "Pollen release (flowers)" #conifers: 495 ==  503 ==
@@ -102,8 +102,8 @@ names(lowconflict_sites) <- "site_id"
 # (with single conflict flags removed) to see the difference... 
 npn_direct_flag <- merge(npn_direct, lowconflict_sites, by="site_id")
 
-#write_csv(npn_direct, "data/npn_direct_210830.csv") #keeping a local copy to avoid having to re-download data
-#npn_direct <- read_csv("data/npn_direct_210830.csv")
+#write_csv(npn_direct, "data/npn_direct_220128.csv") #keeping a local copy to avoid having to re-download data
+#npn_direct <- read_csv("data/npn_direct_220128.csv")
 npn_flow <- filter(npn_direct_flag, phenophase_id == 501 | phenophase_id == 495)
 
 # flowering intensity value (which is entered about 82% of the time)
@@ -158,9 +158,12 @@ npn_active_flow <- left_join(npn_active_flow, npn_active_flow3)
 # request
 
 #extract temperature for the NAB stations and add it to active flowers dataframe
-NAB_coords <- data.frame(station = c("Armonk", "Atlanta", "Waterbury", "Carrolton", "Flower Mound", "Minneapolis", "Springfield", "Waterbury"),
-                         lat = c(41.1299814, 33.974,	41.5493, 33.0439926, 33.0345517, 44.9749718, 40.7002184, 41.5496514),	
-                         long = c(-73.7310037, -84.5493, -73.0659, -96.8341063, -97.0980874, -93.2756438, -74.3244135, -73.0681707)) %>% 
+NAB_coords <- data.frame(station = c("Armonk", "Atlanta", "Waterbury", "Carrolton", "Flower Mound", "Minneapolis", "Springfield", "Waterbury",
+                                     "NYC", "Asheville"),
+                         lat = c(41.1299814, 33.974,	41.5493, 33.0439926, 33.0345517, 44.9749718, 40.7002184, 41.5496514, 
+                                 40.77241, 35.583),	
+                         long = c(-73.7310037, -84.5493, -73.0659, -96.8341063, -97.0980874, -93.2756438, -74.3244135, -73.0681707,
+                                  -73.98353, -82.556)) %>% 
   st_as_sf(coords = c("long", "lat"), crs = 4326) 
 
 tmean_data_NAB <- unlist(raster::extract(x = tmean_rast2, #matrix(c(NAB_tx_coords$long, NAB_tx_coords$lat), ncol = 2), 
@@ -224,6 +227,33 @@ npn_Carrolton$NABStn <- "Carrolton"
 npn_buffer_ok <- rbind(npn_buffer_ok, npn_Carrolton) #append Carrolton
 rm(npn_Carrolton)
 
+#Atlanta
+npn_active_flow <- subset(npn_active_flow, select= -distNAB)
+npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-84.5493, 33.9740), fun = distHaversine) #Atlanta
+npn_Atlanta <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
+npn_Atlanta$NABStn <- "Atlanta"
+
+npn_buffer_ok <- rbind(npn_buffer_ok, npn_Atlanta) #append Atlanta
+rm(npn_Atlanta)
+
+
+#"NYC", 
+npn_active_flow <- subset(npn_active_flow, select= -distNAB)
+npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-73.9832, 40.7724), fun = distHaversine) #NYC
+npn_NYC <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
+npn_NYC$NABStn <- "NYC"
+
+npn_buffer_ok <- rbind(npn_buffer_ok, npn_NYC) #append NYC
+rm(npn_NYC)
+
+#"Asheville"
+npn_active_flow <- subset(npn_active_flow, select= -distNAB)
+npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-82.5561, 35.5828), fun = distHaversine) #Asheville
+npn_Asheville <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
+npn_Asheville$NABStn <- "Asheville"
+
+npn_buffer_ok <- rbind(npn_buffer_ok, npn_Asheville) #append Carrolton
+rm(npn_Asheville)
 ##### ADD IN TMEAN VALUE FOR NAB STATIONS, CALCULATE tmean_dif
 
 npn_buffer_ok <- left_join(npn_buffer_ok, NAB_coords_tmean, by = c("NABStn" = "NAB_station"))
@@ -231,5 +261,11 @@ npn_buffer_ok$tmean_dif <- (npn_buffer_ok$tmean_NAB - npn_buffer_ok$tmean)
 
 
 ### export data to file (data exploration is next script) ##################################
-readr::write_csv(npn_buffer_ok, "data/200mibuffer-inclusive.csv")
+readr::write_csv(npn_buffer_ok, "data/200mibuffer-inclusive_220128.csv")
 
+
+#double check that everything added up well
+npn_buffer_ok %>% 
+  group_by(NABStn) %>% 
+  filter(genus == "Quercus") %>%   
+  summarize(n = n())

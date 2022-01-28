@@ -37,15 +37,18 @@ library(ggpubr)
 #library(AeRobiology)
 
 ### load in and prepare NAB data ###############################################################
-nab_raw <- read_csv("data/NAB_pollen_210621.csv", guess_max = 92013) 
+nab_raw <- read_csv("data/NAB_pollen_220128c.csv", guess_max = 92013) 
+
+#names(nab_raw)
+#test <- filter(nab_raw, site == "NYC")
 
 ### remove Denver rows since no meaningful data in there #####
 nab_raw <- filter(nab_raw, site != "Denver") %>% 
-  rename(dates = Date)
+  rename(dates = Date) 
 
 #expand to include missing dates
 # date_station_grid is a dataframe with a row for each date in the record for each station
-date_station_grid <- expand_grid(seq(min(nab_raw$date), max(nab_raw$date), by = '1 day'), unique(nab_raw$site)) %>% 
+date_station_grid <- expand_grid(seq(min(nab_raw$dates), max(nab_raw$dates), by = '1 day'), unique(nab_raw$site)) %>% 
   `colnames<-`(c("dates", "site")) %>%
   filter(!is.na(site)) %>% 
   ungroup()
@@ -117,9 +120,9 @@ nab_seasons <- nab %>% left_join(., nab_focal_season_max) %>%
 
 ####### load in and prepare NPN data ###############################################################
 #npn_raw <- read_csv("data/200mibuffer_8-12-21.csv", guess_max = 672676)
-npn_raw <- read_csv("data/200mibuffer-inclusive.csv", guess_max = 672676)
+npn_raw <- read_csv("data/200mibuffer-inclusive_220128.csv", guess_max = 672676)
 
-filt_tmean_dif <- 2 #filter NPN observations that are within X degrees celsius of the nearest NAB station
+filt_tmean_dif <- 2 #filter NPN observations that are within X degrees Celsius of the nearest NAB station
 
 npn <- npn_raw %>% 
   filter(tmean_dif > -filt_tmean_dif & tmean_dif < filt_tmean_dif) %>% #MAT filtering
@@ -250,6 +253,36 @@ nabnpn %>%
   ggplot(aes(x = doy, y = pol + 1, group = as.factor(years),
              color = in_pol95season)) + geom_point() + facet_grid(site~taxon) + theme_bw()  + scale_y_log10()
 
+## visualize a few time series as examples
+nabnpn %>% 
+  filter(site == "Springfield") %>%  #unique(nabnpn$site)
+  filter(taxon == "Acer") %>%  #unique(nabnpn$taxon)
+  filter(sum_pol > 200) %>% 
+  filter(nobs_yes_per_season > 50) %>% 
+  filter(doy > 80 & doy < 155) %>% 
+  ggplot(aes(x = as.Date(doy, origin = as.Date("2018-01-01")), y = mean_prop_flow_m_ma * 100)) + geom_line(col = "blue") + theme_few() + facet_wrap(~years) +
+  geom_point(aes(x = as.Date(doy, origin = as.Date("2018-01-01")), y = polpct * 100)) + xlab("date") + 
+  scale_y_continuous(name="flowering (% of observations)", sec.axis=sec_axis(~., name="airborne pollen (% of maximum)")) +
+  theme(axis.title.y.left=element_text(color="blue"), axis.text.y.left=element_text(color="blue")) +
+  scale_x_date(date_labels = "%b")
+
+
+nabnpn %>% 
+  filter(site == "Armonk") %>%  #unique(nabnpn$site)
+  filter(taxon == "Quercus") %>%  #unique(nabnpn$taxon)
+  filter(sum_pol > 200) %>% 
+  filter(nobs_yes_per_season > 50) %>% 
+  filter(doy > 95 & doy < 175) %>% 
+  ggplot(aes(x = as.Date(doy, origin = as.Date("2018-01-01")), y = mean_prop_flow_m_ma * 100)) + geom_line(col = "blue") + theme_few() + facet_wrap(~years) +
+  geom_point(aes(x = as.Date(doy, origin = as.Date("2018-01-01")), y = polpct * 100)) + xlab("date") + 
+  scale_y_continuous(name="flowering (% of observations)", sec.axis=sec_axis(~., name="airborne pollen (% of maximum)")) +
+  theme(axis.title.y.left=element_text(color="blue"), axis.text.y.left=element_text(color="blue")) +
+  scale_x_date(date_labels = "%b")
+
+
+
+### overall comparisons
+
 #comparing nab and npn data - Pearson's
 formula <- y ~ x 
 nabnpn %>% 
@@ -258,21 +291,23 @@ nabnpn %>%
   filter(in_npn_95season == "in 95% season" & in_pol95season == "in 95% season") %>% 
   ggplot(aes(x = mean_prop_flow_m_ma, y = pol + 1)) + 
   geom_point(alpha = 0.5) + facet_grid(site~taxon) + theme_bw()  + scale_y_log10() +
-  geom_smooth(method = "lm") +
+  geom_smooth(method = "lm", se = FALSE) +
   stat_poly_eq(aes(label =  paste(stat(rr.label), stat(p.value.label), sep = "*\", \"*")),
                formula = formula, parse = TRUE, label.x = .9, color = "black")
 
 #comparing nab and npn data - Pearson's - using scaled pollen values
 formula <- y ~ x 
 nabnpn %>% 
-  # filter(sum_pctpol > 200) %>% 
+  filter(sum_pol > 200) %>% 
   filter(nobs_yes_per_season > 50) %>% 
   filter(in_npn_95season == "in 95% season" & in_pol95season == "in 95% season") %>% 
-  ggplot(aes(x = mean_prop_flow_m_ma, y = polpct + 1)) + 
-  geom_point(alpha = 0.5) + facet_grid(site~taxon) + theme_bw() + #  scale_y_log10() +
-  geom_smooth(method = "lm") +
-  stat_poly_eq(aes(label =  paste(stat(rr.label), stat(p.value.label), sep = "*\", \"*")),
-               formula = formula, parse = TRUE, label.x = .9, color = "black")
+  ggplot(aes(x = mean_prop_flow_m_ma, y = polpct)) + theme_bw() + #  scale_y_log10() +
+  xlab("observed in flower (%)") + ylab("airborne pollen (% of maximum)") + 
+  geom_point(alpha = 0.5) + facet_wrap (site ~ taxon) +#facet_grid(site~taxon) + 
+  geom_smooth(method = "lm", se = FALSE) +
+  stat_cor(method = "pearson") 
+  # stat_poly_eq(aes(label =  paste(stat(rr.label), stat(p.value.label), sep = "*\", \"*")),
+  #              formula = formula, parse = TRUE, label.x = .9, color = "black")
 
 #comparing nab and npn data - Spearman's  - BUT - the "scale_y_log10" is still in here, do we need to remove that??
 formula <- y ~ x 
@@ -288,10 +323,12 @@ nabnpn %>%
 #comparing nab and npn data - Spearman's - using scaled pollen values
 formula <- y ~ x 
 nabnpn %>% 
-  #  filter(sum_pol > 200) %>% 
+  filter(sum_pol > 200) %>% 
   filter(nobs_yes_per_season > 50) %>% 
   filter(in_npn_95season == "in 95% season" & in_pol95season == "in 95% season") %>% 
-  ggplot(aes(x = mean_prop_flow_m_ma, y = polpct + 1)) + 
-  geom_point(alpha = 0.5) + facet_grid(site~taxon) + theme_bw()  + scale_y_log10() +
-  geom_smooth(method = "lm") + 
-  stat_cor(method = "spearman")
+  ggplot(aes(x = mean_prop_flow_m_ma * 100, y = polpct * 100)) + 
+  geom_point(alpha = 0.3) + facet_grid(site~taxon) + ggthemes::theme_few()  + #scale_y_log10() +
+  xlab("observed in flower (%)") + ylab("airborne pollen (% of maximum)") + 
+  #geom_smooth(method = "lm") + 
+  stat_cor(method = "spearman", cor.coef.name = "rho")
+
