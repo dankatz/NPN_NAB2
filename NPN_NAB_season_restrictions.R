@@ -332,3 +332,44 @@ nabnpn %>%
   #geom_smooth(method = "lm") + 
   stat_cor(method = "spearman", cor.coef.name = "rho")
 
+
+### creating a table of correlations by taxon x site
+cor_spear <- nabnpn %>%  
+  filter(sum_pol > 200) %>% 
+  filter(nobs_yes_per_season > 50) %>% 
+  filter(in_npn_95season == "in 95% season" & in_pol95season == "in 95% season") %>% 
+  #filter(site == "Armonk" & taxon == "Quercus") %>% 
+  filter(!is.na(mean_prop_flow_m_ma)) %>% 
+  filter(!is.na(polpct)) %>% 
+  group_by(site, taxon) %>% 
+  summarize(cor_spear = cor(mean_prop_flow_m_ma, polpct, method = "spearman")) %>% 
+  mutate(cor_spear = round(cor_spear, 2)) %>% 
+  arrange(taxon)
+cor_spear
+write.table(cor_spear, "clipboard", sep="\t", row.names=FALSE, col.names=FALSE)
+
+
+# creating a similar table without the temperature restriction 
+# (i.e., manually re-running script after changing filt_tmean_dif)
+cor_spear_notemp <- nabnpn %>%  
+  filter(sum_pol > 200) %>% 
+  filter(nobs_yes_per_season > 50) %>% 
+  filter(in_npn_95season == "in 95% season" & in_pol95season == "in 95% season") %>% 
+  #filter(site == "Armonk" & taxon == "Quercus") %>% 
+  filter(!is.na(mean_prop_flow_m_ma)) %>% 
+  filter(!is.na(polpct)) %>% 
+  group_by(site, taxon) %>% 
+  summarize(cor_spear = cor(mean_prop_flow_m_ma, polpct, method = "spearman")) %>% 
+  mutate(cor_spear = round(cor_spear, 2)) %>% 
+  arrange(taxon)
+cor_spear_notemp
+write.table(cor_spear_notemp, "clipboard", sep="\t", row.names=FALSE, col.names=FALSE)
+
+
+#exploring species composition for Acer for NPN
+npn_raw %>% 
+  filter(genus == "Acer") %>% 
+  #group_by(species) %>% 
+  summarize(n = n())
+
+head(npn_raw)
