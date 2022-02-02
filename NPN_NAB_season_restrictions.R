@@ -191,6 +191,9 @@ npn_join <-  left_join(npn_summary, npn_season_summary_nobs) %>%
          mean_prop_flow_m_ma = round(rollmean(mean_prop_flow_m, 7, na.pad=TRUE),2),
          mean_nobs_ma = round(rollmean(n_obs, 7, na.pad=TRUE),2))
 
+
+
+
 ##### figure out DOY for 2.5% and 97.% of "open flowers" #############################################
 # fill in any NAs in mean_prop_flow_m_ma with 0.0
 npn_join[c("mean_prop_flow")][is.na(npn_join[c("mean_prop_flow")])] <- 0 
@@ -224,7 +227,7 @@ nab_seasons_join <- nab_seasons %>% rename(in_pol95season = in_95season)
 
 nabnpn <- left_join(nab_seasons_join, npn_seasons)
 
-
+unique(nabnpn$taxon)
 ### data exploration ##################################################################
 
 # #season summaries
@@ -255,7 +258,7 @@ nabnpn %>%
 
 ## visualize a few time series as examples
 nabnpn %>% 
-  filter(site == "Springfield") %>%  #unique(nabnpn$site)
+  filter(site == "Waterbury") %>%  #unique(nabnpn$site)
   filter(taxon == "Acer") %>%  #unique(nabnpn$taxon)
   filter(sum_pol > 200) %>% 
   filter(nobs_yes_per_season > 50) %>% 
@@ -271,14 +274,18 @@ nabnpn %>%
   filter(site == "Armonk") %>%  #unique(nabnpn$site)
   filter(taxon == "Quercus") %>%  #unique(nabnpn$taxon)
   filter(sum_pol > 200) %>% 
+  filter(years == 2018 | years == 2019) %>% 
   filter(nobs_yes_per_season > 50) %>% 
   filter(doy > 95 & doy < 175) %>% 
-  ggplot(aes(x = as.Date(doy, origin = as.Date("2018-01-01")), y = mean_prop_flow_m_ma * 100)) + geom_line(col = "blue") + theme_few() + facet_wrap(~years) +
+  ggplot(aes(x = as.Date(doy, origin = as.Date("2018-01-01")), y = mean_prop_flow_m_ma * 100)) + geom_line(col = "blue") + 
+  theme_few() + facet_wrap(~years, ncol = 1) +
   geom_point(aes(x = as.Date(doy, origin = as.Date("2018-01-01")), y = polpct * 100)) + xlab("date") + 
   scale_y_continuous(name="flowering (% of observations)", sec.axis=sec_axis(~., name="airborne pollen (% of maximum)")) +
   theme(axis.title.y.left=element_text(color="blue"), axis.text.y.left=element_text(color="blue")) +
-  scale_x_date(date_labels = "%b")
+  scale_x_date(date_labels = "%b %d")
 
+
+##
 
 
 ### overall comparisons
@@ -341,35 +348,115 @@ cor_spear <- nabnpn %>%
   #filter(site == "Armonk" & taxon == "Quercus") %>% 
   filter(!is.na(mean_prop_flow_m_ma)) %>% 
   filter(!is.na(polpct)) %>% 
-  group_by(site, taxon) %>% 
-  summarize(cor_spear = cor(mean_prop_flow_m_ma, polpct, method = "spearman")) %>% 
+  group_by(site, taxon, years) %>% 
+  summarize(n_obs = n(),
+            cor_spear = cor(mean_prop_flow_m_ma, polpct, method = "spearman"),
+            cor_p_value = cor.test(mean_prop_flow_m_ma, polpct, method = "spearman")$p.value) %>% 
   mutate(cor_spear = round(cor_spear, 2)) %>% 
   arrange(taxon)
-cor_spear
-write.table(cor_spear, "clipboard", sep="\t", row.names=FALSE, col.names=FALSE)
+cor_spear #unique(cor_spear$taxon)
+write_csv(cor_spear, "C:/Users/danka/Box/things for other people/NAB_NPN/spearman_taxon_site_year_220202.csv")
+#write.table(cor_spear, "clipboard", sep="\t", row.names=FALSE, col.names=FALSE)
+dir()
+
+ggplot(cor_spear, aes(x = taxon, y = cor_spear)) + 
+  geom_boxplot(outlier.shape = NA) + geom_jitter(aes(color = site), width = 0.2) + ggthemes::theme_few() +
+  ylab("Spearman correlation between airborne pollen and flowering") +
+  theme(axis.text.x = element_text(face = "italic"))
+
+# 
+# # creating a similar table without the temperature restriction 
+# # (i.e., manually re-running script after changing filt_tmean_dif)
+# cor_spear_notemp <- nabnpn %>%  
+#   filter(sum_pol > 200) %>% 
+#   filter(nobs_yes_per_season > 50) %>% 
+#   filter(in_npn_95season == "in 95% season" & in_pol95season == "in 95% season") %>% 
+#   #filter(site == "Armonk" & taxon == "Quercus") %>% 
+#   filter(!is.na(mean_prop_flow_m_ma)) %>% 
+#   filter(!is.na(polpct)) %>% 
+#   group_by(site, taxon, years) %>% 
+#   summarize(cor_spear = cor(mean_prop_flow_m_ma, polpct, method = "spearman"),
+#             n = n()) %>% 
+#   mutate(cor_spear = round(cor_spear, 2)) %>% 
+#   arrange(taxon)
+# cor_spear_notemp
+# write.table(cor_spear_notemp, "clipboard", sep="\t", row.names=FALSE, col.names=FALSE)
+# 
+# 
 
 
-# creating a similar table without the temperature restriction 
-# (i.e., manually re-running script after changing filt_tmean_dif)
-cor_spear_notemp <- nabnpn %>%  
+
+
+### figure for different Acer species over time ###################################
+# #exploring species composition for Acer for NPN
+# npn_raw %>% 
+#   filter(genus == "Acer") %>% 
+#   group_by(species) %>% 
+#   summarize(n = n())
+# 
+# head(npn_raw)
+
+acer_ny <- npn_raw %>% 
+  mutate(years = year(observation_date)) %>% 
+  filter(years == 2016) %>% 
+  filter(genus == "Acer") %>% 
+  # filter(species == "rubrum" | #species == "saccharum" | #species == "platanoides" | species == "pensylvanicum" |
+  #          species == "saccharinum" | 
+  #          species == "negundo"
+  #        ) %>% 
+  filter(NABStn == "Springfield") %>% 
+  filter(distNAB < 321869 * 1) %>% #321869 = 200 miles
+  filter(day_of_year > 50) %>% 
+  filter(day_of_year < 150) %>% 
+  arrange(species,  observation_date) %>% 
+  group_by(species, day_of_year) %>% 
+  #group_by() %>% 
+  # mutate(mean_flow = mean(phenophase_status), 
+  #        mean_flow_m = round(na_interpolation(mean_flow),1),
+  #        mean_flow_m_ma = round(rollmean(mean_flow_m, 7, na.pad=TRUE),2)) 
+  dplyr::summarize(mean_flow = mean(phenophase_status),
+                   mean_prop_flow = mean(flow_prop),
+                   n_obs = sum(!is.na(observation_id)))  %>% #do not include NA values in n() calculation
+  filter(n_obs > 3) %>% 
+  ungroup() 
+
+acer_ny %>% 
+  filter(species != "platanoides") %>% 
+  ggplot( aes(x = as.Date(day_of_year, origin = as.Date("2018-01-01")), y = mean_flow, color = species)) + #geom_point() + 
+  ggthemes::theme_few() + ylab("flowering (% of observations)") + xlab("") + 
+  scale_x_date(limits = c(ymd("2018-03-01"), ymd("2018-05-24"))) + 
+  geom_line(aes(x = as.Date(day_of_year, origin = as.Date("2018-01-01")), 
+                y=rollmean(mean_flow, 14, na.pad=TRUE))) +#+ facet_wrap(~species)
+  scale_color_discrete(labels = c(#expression(italic("negundo")),
+                                  expression(italic("Acer rubrum")),
+                                  expression(italic("Acer saccharum")))) +
+  ggtitle("Maples near Springfield")
+
+
+#comparing nab and npn data - Spearman's - using scaled pollen values
+formula <- y ~ x 
+nabnpn %>% 
   filter(sum_pol > 200) %>% 
   filter(nobs_yes_per_season > 50) %>% 
   filter(in_npn_95season == "in 95% season" & in_pol95season == "in 95% season") %>% 
-  #filter(site == "Armonk" & taxon == "Quercus") %>% 
-  filter(!is.na(mean_prop_flow_m_ma)) %>% 
-  filter(!is.na(polpct)) %>% 
-  group_by(site, taxon) %>% 
-  summarize(cor_spear = cor(mean_prop_flow_m_ma, polpct, method = "spearman")) %>% 
-  mutate(cor_spear = round(cor_spear, 2)) %>% 
-  arrange(taxon)
-cor_spear_notemp
-write.table(cor_spear_notemp, "clipboard", sep="\t", row.names=FALSE, col.names=FALSE)
+  filter(taxon == "Acer") %>% 
+  ggplot(aes(x = mean_prop_flow_m_ma * 100, y = polpct * 100)) + 
+  geom_point(alpha = 0.3) + facet_grid(site~years) + ggthemes::theme_few()  + #scale_y_log10() +
+  xlab("observed in flower (%)") + ylab("airborne pollen (% of maximum)") + 
+  #geom_smooth(method = "lm") + 
+  stat_cor(method = "spearman", cor.coef.name = "rho")
 
 
-#exploring species composition for Acer for NPN
-npn_raw %>% 
-  filter(genus == "Acer") %>% 
-  #group_by(species) %>% 
-  summarize(n = n())
-
-head(npn_raw)
+nabnpn %>% 
+  filter(site == "Springfield") %>%  #unique(nabnpn$site)
+  filter(taxon == "Acer") %>%  #unique(nabnpn$taxon)
+  filter(sum_pol > 200) %>% 
+  filter(years == 2016 ) %>% 
+  filter(nobs_yes_per_season > 30) %>% 
+  filter(doy > 50 & doy < 175) %>% 
+  ggplot(aes(x = as.Date(doy, origin = as.Date("2018-01-01")), y = mean_prop_flow_m_ma * 100)) + geom_line(col = "blue") + 
+  theme_few() + facet_grid(site~years) +
+  geom_point(aes(x = as.Date(doy, origin = as.Date("2018-01-01")), y = polpct * 100)) + xlab("date") + 
+  scale_y_continuous(name="flowering (% of observations)", sec.axis=sec_axis(~., name="airborne pollen (% of maximum)")) +
+  theme(axis.title.y.left=element_text(color="blue"), axis.text.y.left=element_text(color="blue")) +
+  scale_x_date(date_labels = "%b %d")
