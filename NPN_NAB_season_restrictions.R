@@ -37,7 +37,11 @@ library(ggpubr)
 #library(AeRobiology)
 
 ### load in and prepare NAB data ###############################################################
-nab_raw <- read_csv("data/NAB_pollen_220128c.csv", guess_max = 92013) 
+#NAB data were assembled in this script: #C:/Users/danka/Box/texas/NAB/extract_pollen_data_from_NPNdata220308.R
+nab_raw <- read_csv("C:/Users/danka/Box/Cornell/1 national pollen model/NAB_NPN/NAB_data_request_220308e.csv") %>% 
+  mutate(site = NAB_station)
+
+#nab_raw <- read_csv("data/NAB_pollen_220128c.csv", guess_max = 92013) 
 
 #names(nab_raw)
 #test <- filter(nab_raw, site == "NYC")
@@ -120,7 +124,8 @@ nab_seasons <- nab %>% left_join(., nab_focal_season_max) %>%
 
 ####### load in and prepare NPN data ###############################################################
 #npn_raw <- read_csv("data/200mibuffer_8-12-21.csv", guess_max = 672676)
-npn_raw <- read_csv("data/200mibuffer-inclusive_220128.csv", guess_max = 672676)
+#npn_raw <- read_csv("data/200mibuffer-inclusive_220128.csv", guess_max = 672676)
+npn_raw <- read_csv("C:/Users/danka/Box/Cornell/1 national pollen model/NAB_NPN/npn_200mi_2c_220321.csv")
 
 filt_tmean_dif <- 2 #filter NPN observations that are within X degrees Celsius of the nearest NAB station
 
@@ -146,7 +151,7 @@ npn <- npn_raw %>%
                            genus == "Abies" ~ "Pinaceae",
                            TRUE ~ taxon)) %>% 
   dplyr::rename(dates = observation_date,
-                site = NABStn
+                site = NAB_station
   ) 
 
 #expand to include missing dates
@@ -355,7 +360,7 @@ cor_spear <- nabnpn %>%
   mutate(cor_spear = round(cor_spear, 2)) %>% 
   arrange(taxon)
 cor_spear #unique(cor_spear$taxon)
-write_csv(cor_spear, "C:/Users/danka/Box/things for other people/NAB_NPN/spearman_taxon_site_year_220202.csv")
+write_csv(cor_spear, "C:/Users/danka/Box/things for other people/NAB_NPN/spearman_taxon_site_year_220322.csv")
 #write.table(cor_spear, "clipboard", sep="\t", row.names=FALSE, col.names=FALSE)
 dir()
 

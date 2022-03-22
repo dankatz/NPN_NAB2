@@ -1,3 +1,6 @@
+#This script is superceded by the NPN_NAB_data_assembly-buffer_method.R script
+
+
 ### General information ####################################################################
 # Project goals: 
 # -assess correlations between NPN and NAB data 

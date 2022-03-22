@@ -54,11 +54,14 @@ npn_direct <- npn_download_status_data(
   phenophase_ids = c(501, 502,495, 503), #angiosperms: 501 == "Open flowers", 502 == "Pollen release (flowers)" #conifers: 495 ==  503 ==
   additional_fields = c("Observed_Status_Conflict_Flag", "partner_group")
 )
+
+#write_csv(npn_direct, "C:/Users/danka/Box/Cornell/1 national pollen model/NAB_NPN/NPN_220308.csv")
+#npn_direct <- read_csv("C:/Users/danka/Box/Cornell/1 national pollen model/NAB_NPN/NPN_220308.csv") 
 #names(npn_direct)
 
-#npn_direct <- subset(npn_direct, observed_status_conflict_flag == "-9999")
-
-#npn_direct <- filter(npn_direct, !(partner_group %in% c("CSU Chico NSCI 102", "SCMF Naturalists", 
+#Theresa - is this QA/QC section depreciated? If so, let's remove these next 8 lines
+# npn_direct <- subset(npn_direct, observed_status_conflict_flag == "-9999")
+# npn_direct <- filter(npn_direct, !(partner_group %in% c("CSU Chico NSCI 102", "SCMF Naturalists",
 #                                                        "Sycamore Canyon Wilderness Park - Riverside",
 #                                                        "Marist College", "Sam Hughes Neighborhood Association",
 #                                                        "UNCO BIO 111", "Maricopa Cooperative Extension",
@@ -147,125 +150,156 @@ tmean_data <- unlist(raster::extract(x = tmean_rast2,
 
 npn_active_flow3 <- npn_active_flow_sf %>%  
   dplyr::select(site_id) %>% 
-  mutate(tmean = unlist(tmean_data)) 
+  mutate(tmean = as.numeric(unlist(tmean_data)))
 
 npn_active_flow3$geometry <- NULL
 
 npn_active_flow <- left_join(npn_active_flow, npn_active_flow3)
 
 ### extract mean annual air temperature for each selected NAB site #####################################
-# note: if we wanted to do this for Cupressaceae, that's covered by my most recent NAB data
-# request
+#NAB data were assembled in this script: #C:/Users/danka/Box/texas/NAB/extract_pollen_data_from_NPNdata220308.R
+NAB <- read_csv("C:/Users/danka/Box/Cornell/1 national pollen model/NAB_NPN/NAB_data_request_220308e.csv")
 
 #extract temperature for the NAB stations and add it to active flowers dataframe
-NAB_coords <- data.frame(station = c("Armonk", "Atlanta", "Waterbury", "Carrolton", "Flower Mound", "Minneapolis", "Springfield", "Waterbury",
-                                     "NYC", "Asheville"),
-                         lat = c(41.1299814, 33.974,	41.5493, 33.0439926, 33.0345517, 44.9749718, 40.7002184, 41.5496514, 
-                                 40.77241, 35.583),	
-                         long = c(-73.7310037, -84.5493, -73.0659, -96.8341063, -97.0980874, -93.2756438, -74.3244135, -73.0681707,
-                                  -73.98353, -82.556)) %>% 
-  st_as_sf(coords = c("long", "lat"), crs = 4326) 
+NAB_coords <- NAB %>% dplyr::select(NAB_station, Lat, Long) %>% 
+  distinct() %>% 
+  st_as_sf(coords = c("Long", "Lat"), crs = 4326) 
 
 tmean_data_NAB <- unlist(raster::extract(x = tmean_rast2, #matrix(c(NAB_tx_coords$long, NAB_tx_coords$lat), ncol = 2), 
                                          y = NAB_coords )) %>% as.data.frame() 
-NAB_coords_tmean <- NAB_coords %>% mutate(tmean_NAB = unlist(tmean_data_NAB)) %>% 
-  rename(NAB_station = station)
+NAB_coords_tmean <- NAB_coords %>% mutate(tmean_NAB = as.numeric(unlist(tmean_data_NAB))) 
 NAB_coords_tmean$geometry <- NULL
 
-### THIS BIT NOT WORKING - 
-# npn_active_flow <- left_join(npn_active_flow, NAB_coords_tmean) %>% 
-#  mutate(tmean_dif = tmean_NAB - tmean)
+
+### calculate geographic distance from each NPN site to each NAB site ################################
+#NAB_stations <- unique(NAB_coords_tmean$NAB_station)
+NAB_coords_notsf <- NAB %>% dplyr::select(NAB_station, NAB_station_lat = Lat, NAB_station_long = Long) %>% distinct() 
+#NAB_coords_notsf <- NAB_coords_notsf[1:2,] #for testing with a subset of stations 
+npn_active_flow_coords_only <- npn_active_flow %>% dplyr::select(longitude, latitude) %>% as.matrix(.)
+npn_coords_all <- as.matrix(npn_active_flow[,c(6,5)])
+
+#function for extracting 
+dist_calc_fun <- function(NAB_station, NAB_station_long, NAB_station_lat){
+  #NAB_coords_row <- NAB_coords_notsf[NAB_station_row,] #NAB_coords_row <- NAB_coords_notsf[1,]
+  #NAB_coords_focal <- c(NAB_station_long, NAB_station_lat) #NAB_coords_row[,3:2] #make sure to have it in the order of long, lat
+  npn_active_flow_dist_i <- distm( x = npn_active_flow_coords_only, 
+                                   y = c(NAB_station_long, NAB_station_lat), 
+                                   fun = distHaversine)
+                            
+  npn_active_flow_i <- npn_active_flow %>% mutate(distNAB = as.numeric(npn_active_flow_dist_i),
+                                                  NAB_station = NAB_station)
+  npn_active_flow_i_200m <- filter(npn_active_flow_i, distNAB <= 321869) #filter observations within 200 miles
+return(npn_active_flow_i_200m)
+}
+
+Sys.time()
+NPN_near_NAB <- pmap_dfr(NAB_coords_notsf, dist_calc_fun)
+Sys.time()
+
+#ggplot(NPN_near_NAB, aes(x = distNAB)) + geom_histogram() + facet_wrap(~NAB_station)
+#ggplot(NPN_near_NAB, aes(x = longitude, y = latitude)) + geom_point() 
 
 
-### calculate geographic distance from each NPN site to each NAB site #########
-########## IF WE CAN GET MORE NAB STATIONS - NEED TO ADD THEIR INFO HERE ################
+ 
+ 
+# ########## IF WE CAN GET MORE NAB STATIONS - NEED TO ADD THEIR INFO HERE ################
+# 
+# # calculate distance from each NAB stn and each NN obs station one at a time, filter by buffer, and append
+# 
+# npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-73.7310037, 41.1299814), fun = distHaversine) #Armonk
+# npn_Armonk <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
+# npn_Armonk$NABStn <- "Armonk"
+# 
+# npn_active_flow <- subset(npn_active_flow, select= -distNAB)
+# npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-97.0780927, 33.0439926), fun = distHaversine) #FlowerMound
+# npn_FlowerMnd <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
+# npn_FlowerMnd$NABStn <- "FlowerMound"
+# 
+# npn_buffer_ok <- rbind(npn_Armonk, npn_FlowerMnd) #append FlowerMnd to Armonk in new dataframe
+# rm(npn_Armonk)
+# rm(npn_FlowerMnd)
+# 
+# npn_active_flow <- subset(npn_active_flow, select= -distNAB)
+# npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-93.2756491, 44.9749718), fun = distHaversine) #Minneapolis
+# npn_Minneapolis <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
+# npn_Minneapolis$NABStn <- "Minneapolis"
+# 
+# npn_buffer_ok <- rbind(npn_buffer_ok, npn_Minneapolis) #append Minneapolis to nn_buffer_ok rm(npn_Armonk)
+# rm(npn_Minneapolis)
+# 
+# npn_active_flow <- subset(npn_active_flow, select= -distNAB)
+# npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-74.3244188, 40.7002184), fun = distHaversine) #Springfield
+# npn_Springfield <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
+# npn_Springfield$NABStn <- "Springfield"
+# 
+# npn_buffer_ok <- rbind(npn_buffer_ok, npn_Springfield) #append Springfield
+# rm(npn_Springfield)
+# 
+# npn_active_flow <- subset(npn_active_flow, select= -distNAB)
+# npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-73.068176, 41.5493), fun = distHaversine) #Waterbury
+# npn_Waterbury <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
+# npn_Waterbury$NABStn <- "Waterbury"
+# 
+# npn_buffer_ok <- rbind(npn_buffer_ok, npn_Waterbury) #append Waterbury
+# rm(npn_Waterbury)
+# 
+# npn_active_flow <- subset(npn_active_flow, select= -distNAB)
+# npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-96.8341116, 33.0439971), fun = distHaversine) #Carrolton
+# npn_Carrolton <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
+# npn_Carrolton$NABStn <- "Carrolton"
+# 
+# npn_buffer_ok <- rbind(npn_buffer_ok, npn_Carrolton) #append Carrolton
+# rm(npn_Carrolton)
+# 
+# #Atlanta
+# npn_active_flow <- subset(npn_active_flow, select= -distNAB)
+# npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-84.5493, 33.9740), fun = distHaversine) #Atlanta
+# npn_Atlanta <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
+# npn_Atlanta$NABStn <- "Atlanta"
+# 
+# npn_buffer_ok <- rbind(npn_buffer_ok, npn_Atlanta) #append Atlanta
+# rm(npn_Atlanta)
+# 
+# 
+# #"NYC", 
+# npn_active_flow <- subset(npn_active_flow, select= -distNAB)
+# npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-73.9832, 40.7724), fun = distHaversine) #NYC
+# npn_NYC <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
+# npn_NYC$NABStn <- "NYC"
+# 
+# npn_buffer_ok <- rbind(npn_buffer_ok, npn_NYC) #append NYC
+# rm(npn_NYC)
+# 
+# #"Asheville"
+# npn_active_flow <- subset(npn_active_flow, select= -distNAB)
+# npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-82.5561, 35.5828), fun = distHaversine) #Asheville
+# npn_Asheville <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
+# npn_Asheville$NABStn <- "Asheville"
+# 
+# npn_buffer_ok <- rbind(npn_buffer_ok, npn_Asheville) #append Carrolton
+# rm(npn_Asheville)
+##### ADD IN TMEAN VALUE FOR NAB STATIONS, CALCULATE tmean_dif ################
 
-# calculate distance from each NAB stn and each NN obs station one at a time, filter by buffer, and append
+NPN_near_NAB2 <- left_join(NPN_near_NAB, NAB_coords_tmean) %>% 
+  mutate(tmean_dif = as.numeric(tmean_NAB - tmean))
 
-npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-73.7310037, 41.1299814), fun = distHaversine) #Armonk
-npn_Armonk <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
-npn_Armonk$NABStn <- "Armonk"
+#npn_buffer_ok$tmean_dif <- (npn_buffer_ok$tmean_NAB - npn_buffer_ok$tmean)
 
-npn_active_flow <- subset(npn_active_flow, select= -distNAB)
-npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-97.0780927, 33.0439926), fun = distHaversine) #FlowerMound
-npn_FlowerMnd <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
-npn_FlowerMnd$NABStn <- "FlowerMound"
+str(NPN_near_NAB2)
+str(NAB_coords_tmean)
 
-npn_buffer_ok <- rbind(npn_Armonk, npn_FlowerMnd) #append FlowerMnd to Armonk in new dataframe
-rm(npn_Armonk)
-rm(npn_FlowerMnd)
-
-npn_active_flow <- subset(npn_active_flow, select= -distNAB)
-npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-93.2756491, 44.9749718), fun = distHaversine) #Minneapolis
-npn_Minneapolis <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
-npn_Minneapolis$NABStn <- "Minneapolis"
-
-npn_buffer_ok <- rbind(npn_buffer_ok, npn_Minneapolis) #append Minneapolis to nn_buffer_ok rm(npn_Armonk)
-rm(npn_Minneapolis)
-
-npn_active_flow <- subset(npn_active_flow, select= -distNAB)
-npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-74.3244188, 40.7002184), fun = distHaversine) #Springfield
-npn_Springfield <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
-npn_Springfield$NABStn <- "Springfield"
-
-npn_buffer_ok <- rbind(npn_buffer_ok, npn_Springfield) #append Springfield
-rm(npn_Springfield)
-
-npn_active_flow <- subset(npn_active_flow, select= -distNAB)
-npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-73.068176, 41.5493), fun = distHaversine) #Waterbury
-npn_Waterbury <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
-npn_Waterbury$NABStn <- "Waterbury"
-
-npn_buffer_ok <- rbind(npn_buffer_ok, npn_Waterbury) #append Waterbury
-rm(npn_Waterbury)
-
-npn_active_flow <- subset(npn_active_flow, select= -distNAB)
-npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-96.8341116, 33.0439971), fun = distHaversine) #Carrolton
-npn_Carrolton <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
-npn_Carrolton$NABStn <- "Carrolton"
-
-npn_buffer_ok <- rbind(npn_buffer_ok, npn_Carrolton) #append Carrolton
-rm(npn_Carrolton)
-
-#Atlanta
-npn_active_flow <- subset(npn_active_flow, select= -distNAB)
-npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-84.5493, 33.9740), fun = distHaversine) #Atlanta
-npn_Atlanta <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
-npn_Atlanta$NABStn <- "Atlanta"
-
-npn_buffer_ok <- rbind(npn_buffer_ok, npn_Atlanta) #append Atlanta
-rm(npn_Atlanta)
-
-
-#"NYC", 
-npn_active_flow <- subset(npn_active_flow, select= -distNAB)
-npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-73.9832, 40.7724), fun = distHaversine) #NYC
-npn_NYC <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
-npn_NYC$NABStn <- "NYC"
-
-npn_buffer_ok <- rbind(npn_buffer_ok, npn_NYC) #append NYC
-rm(npn_NYC)
-
-#"Asheville"
-npn_active_flow <- subset(npn_active_flow, select= -distNAB)
-npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-82.5561, 35.5828), fun = distHaversine) #Asheville
-npn_Asheville <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
-npn_Asheville$NABStn <- "Asheville"
-
-npn_buffer_ok <- rbind(npn_buffer_ok, npn_Asheville) #append Carrolton
-rm(npn_Asheville)
-##### ADD IN TMEAN VALUE FOR NAB STATIONS, CALCULATE tmean_dif
-
-npn_buffer_ok <- left_join(npn_buffer_ok, NAB_coords_tmean, by = c("NABStn" = "NAB_station"))
-npn_buffer_ok$tmean_dif <- (npn_buffer_ok$tmean_NAB - npn_buffer_ok$tmean)
 
 
 ### export data to file (data exploration is next script) ##################################
-readr::write_csv(npn_buffer_ok, "data/200mibuffer-inclusive_220128.csv")
+write_csv(NPN_near_NAB2, "C:/Users/danka/Box/Cornell/1 national pollen model/NAB_NPN/npn_200mi_2c_220321.csv")
+
+# readr::write_csv(NPN_near_NAB2, "data/200mibuffer-inclusive_220321.csv")
+# write.csv(NPN_near_NAB2, "data/200mibuffer-inclusive_220321b.csv")
+
 
 
 #double check that everything added up well
-npn_buffer_ok %>% 
-  group_by(NABStn) %>% 
+NPN_near_NAB2 %>% 
+  group_by(NAB_station) %>% 
   filter(genus == "Quercus") %>%   
   summarize(n = n())
