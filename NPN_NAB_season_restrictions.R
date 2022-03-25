@@ -39,16 +39,17 @@ library(ggpubr)
 ### load in and prepare NAB data ###############################################################
 #NAB data were assembled in this script: #C:/Users/danka/Box/texas/NAB/extract_pollen_data_from_NPNdata220308.R
 nab_raw <- read_csv("C:/Users/danka/Box/Cornell/1 national pollen model/NAB_NPN/NAB_data_request_220308e.csv") %>% 
-  mutate(site = NAB_station)
+  mutate(site = NAB_station)%>% 
+  rename(dates = Date) 
 
 #nab_raw <- read_csv("data/NAB_pollen_220128c.csv", guess_max = 92013) 
 
 #names(nab_raw)
 #test <- filter(nab_raw, site == "NYC")
 
-### remove Denver rows since no meaningful data in there #####
-nab_raw <- filter(nab_raw, site != "Denver") %>% 
-  rename(dates = Date) 
+unique(nab_raw$site)
+#remove Denver rows since the data there isn't useful for us
+nab_raw <- filter(nab_raw, site != "Denver") 
 
 #expand to include missing dates
 # date_station_grid is a dataframe with a row for each date in the record for each station
@@ -290,11 +291,10 @@ nabnpn %>%
   scale_x_date(date_labels = "%b %d")
 
 
-##
 
 
-### overall comparisons
 
+### Fig. 3: overall comparisons ###############################
 #comparing nab and npn data - Pearson's
 formula <- y ~ x 
 nabnpn %>% 
@@ -362,7 +362,7 @@ cor_spear <- nabnpn %>%
 cor_spear #unique(cor_spear$taxon)
 write_csv(cor_spear, "C:/Users/danka/Box/things for other people/NAB_NPN/spearman_taxon_site_year_220322.csv")
 #write.table(cor_spear, "clipboard", sep="\t", row.names=FALSE, col.names=FALSE)
-dir()
+#dir()
 
 ggplot(cor_spear, aes(x = taxon, y = cor_spear)) + 
   geom_boxplot(outlier.shape = NA) + geom_jitter(aes(color = site), width = 0.2) + ggthemes::theme_few() +

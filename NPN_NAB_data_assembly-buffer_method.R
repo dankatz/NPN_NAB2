@@ -200,90 +200,10 @@ Sys.time()
 #ggplot(NPN_near_NAB, aes(x = longitude, y = latitude)) + geom_point() 
 
 
- 
- 
-# ########## IF WE CAN GET MORE NAB STATIONS - NEED TO ADD THEIR INFO HERE ################
-# 
-# # calculate distance from each NAB stn and each NN obs station one at a time, filter by buffer, and append
-# 
-# npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-73.7310037, 41.1299814), fun = distHaversine) #Armonk
-# npn_Armonk <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
-# npn_Armonk$NABStn <- "Armonk"
-# 
-# npn_active_flow <- subset(npn_active_flow, select= -distNAB)
-# npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-97.0780927, 33.0439926), fun = distHaversine) #FlowerMound
-# npn_FlowerMnd <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
-# npn_FlowerMnd$NABStn <- "FlowerMound"
-# 
-# npn_buffer_ok <- rbind(npn_Armonk, npn_FlowerMnd) #append FlowerMnd to Armonk in new dataframe
-# rm(npn_Armonk)
-# rm(npn_FlowerMnd)
-# 
-# npn_active_flow <- subset(npn_active_flow, select= -distNAB)
-# npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-93.2756491, 44.9749718), fun = distHaversine) #Minneapolis
-# npn_Minneapolis <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
-# npn_Minneapolis$NABStn <- "Minneapolis"
-# 
-# npn_buffer_ok <- rbind(npn_buffer_ok, npn_Minneapolis) #append Minneapolis to nn_buffer_ok rm(npn_Armonk)
-# rm(npn_Minneapolis)
-# 
-# npn_active_flow <- subset(npn_active_flow, select= -distNAB)
-# npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-74.3244188, 40.7002184), fun = distHaversine) #Springfield
-# npn_Springfield <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
-# npn_Springfield$NABStn <- "Springfield"
-# 
-# npn_buffer_ok <- rbind(npn_buffer_ok, npn_Springfield) #append Springfield
-# rm(npn_Springfield)
-# 
-# npn_active_flow <- subset(npn_active_flow, select= -distNAB)
-# npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-73.068176, 41.5493), fun = distHaversine) #Waterbury
-# npn_Waterbury <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
-# npn_Waterbury$NABStn <- "Waterbury"
-# 
-# npn_buffer_ok <- rbind(npn_buffer_ok, npn_Waterbury) #append Waterbury
-# rm(npn_Waterbury)
-# 
-# npn_active_flow <- subset(npn_active_flow, select= -distNAB)
-# npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-96.8341116, 33.0439971), fun = distHaversine) #Carrolton
-# npn_Carrolton <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
-# npn_Carrolton$NABStn <- "Carrolton"
-# 
-# npn_buffer_ok <- rbind(npn_buffer_ok, npn_Carrolton) #append Carrolton
-# rm(npn_Carrolton)
-# 
-# #Atlanta
-# npn_active_flow <- subset(npn_active_flow, select= -distNAB)
-# npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-84.5493, 33.9740), fun = distHaversine) #Atlanta
-# npn_Atlanta <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
-# npn_Atlanta$NABStn <- "Atlanta"
-# 
-# npn_buffer_ok <- rbind(npn_buffer_ok, npn_Atlanta) #append Atlanta
-# rm(npn_Atlanta)
-# 
-# 
-# #"NYC", 
-# npn_active_flow <- subset(npn_active_flow, select= -distNAB)
-# npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-73.9832, 40.7724), fun = distHaversine) #NYC
-# npn_NYC <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
-# npn_NYC$NABStn <- "NYC"
-# 
-# npn_buffer_ok <- rbind(npn_buffer_ok, npn_NYC) #append NYC
-# rm(npn_NYC)
-# 
-# #"Asheville"
-# npn_active_flow <- subset(npn_active_flow, select= -distNAB)
-# npn_active_flow$distNAB <- distm(as.matrix(npn_active_flow[,c(6,5)]), c(-82.5561, 35.5828), fun = distHaversine) #Asheville
-# npn_Asheville <- npn_active_flow[(npn_active_flow$distNAB <= 321869),] #200 miles
-# npn_Asheville$NABStn <- "Asheville"
-# 
-# npn_buffer_ok <- rbind(npn_buffer_ok, npn_Asheville) #append Carrolton
-# rm(npn_Asheville)
 ##### ADD IN TMEAN VALUE FOR NAB STATIONS, CALCULATE tmean_dif ################
 
 NPN_near_NAB2 <- left_join(NPN_near_NAB, NAB_coords_tmean) %>% 
   mutate(tmean_dif = as.numeric(tmean_NAB - tmean))
-
-#npn_buffer_ok$tmean_dif <- (npn_buffer_ok$tmean_NAB - npn_buffer_ok$tmean)
 
 str(NPN_near_NAB2)
 str(NAB_coords_tmean)
