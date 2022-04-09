@@ -38,7 +38,7 @@ library(ggpubr)
 
 ### load in and prepare NAB data ###############################################################
 #NAB data were assembled in this script: #C:/Users/danka/Box/texas/NAB/extract_pollen_data_from_NPNdata220308.R
-nab_raw <- read_csv("C:/Users/danka/Box/Cornell/1 national pollen model/NAB_NPN/NAB_data_request_220308e.csv") %>% 
+nab_raw <- read_csv("C:/Users/danka/Box/Cornell/National pollen model/NAB_NPN/NAB_data_request_220308e.csv") %>% 
   mutate(site = NAB_station)%>% 
   rename(dates = Date) 
 
@@ -89,10 +89,15 @@ nab <- nab %>%
 #   group_by(site, taxon, years) %>% 
 #   summarize(sum_pctpol = sum(polpct, na.rm = TRUE))
 
-#total pollen measured per site/taxon
-nab_focal_season_max <- nab %>% 
+#total pollen measured per site/taxon (across all years)
+nab_focal_all_years <- nab %>% 
   group_by(site, taxon) %>% 
-  summarize(sum_pol = sum(pol, na.rm = TRUE))
+  summarize(sum_pol_all_yrs = sum(pol, na.rm = TRUE))
+
+#total pollen measured per site/taxon/year
+nab_focal_season_sum <- nab %>% 
+  group_by(site, taxon, years) %>% 
+  summarize(sum_pol_season = sum(pol, na.rm = TRUE))
 
 #position in pollen season
 #nab_seasons <- nab %>% left_join(., nab_focal_season_max) %>% 
@@ -112,21 +117,78 @@ nab_focal_season_max <- nab %>%
 #                                  cumu_pol_r >= 0.025 & cumu_pol_r <= 0.975~ "in 95% season",
 #                                  cumu_pol_r > 0.975 ~ "not in 95% season"))  
 
+#for custom fixes of Cupressaceae seasons that straddle the calendar year
+TX_sites <- c("Austin", "Dallas", "Flower Mound", "Houston", "San Antonio B", "Waco A", "Waco B", "Oklahoma City A", "Phoenix",
+              "Tulsa A")
+west_coast_sites <- c("Eugene", "Pleasanton", "San Diego", "San Jose")
+
+
 #position in pollen season - using sum of pollen /taxon/site across all years
-nab_seasons <- nab %>% left_join(., nab_focal_season_max) %>% 
+nab_seasons <- nab %>% 
+  left_join(., nab_focal_all_years) %>% 
+  left_join(., nab_focal_season_sum) %>% 
   group_by(site, taxon) %>% 
   arrange(site, taxon, ydays, years ) %>% 
   mutate(cumu_pol = cumsum(replace_na(pol, 0)),  #cumulative sum of pollen #putting NAs as 0s for calculating seasonal sums 
-         cumu_pol_r = cumu_pol/sum_pol,          #relative sum of pollen
+         cumu_pol_r = cumu_pol/sum_pol_all_yrs,          #relative sum of pollen
          in_95season = case_when(cumu_pol_r < 0.025 ~ "not in 95% season", #is the observation in the 95% pollen season?
                                  cumu_pol_r >= 0.025 & cumu_pol_r <= 0.975~ "in 95% season",
-                                 cumu_pol_r > 0.975 ~ "not in 95% season"))  
+                                 cumu_pol_r > 0.975 ~ "not in 95% season"),
+         in_99polseason = case_when(cumu_pol_r < 0.005 ~ "not in 99% season", #is the observation in the 95% pollen season?
+                                 cumu_pol_r >= 0.005 & cumu_pol_r <= 0.995~ "in 99% season",
+                                 cumu_pol_r > 0.995 ~ "not in 99% season"))%>% 
+  #manual correction for Cupressaceae season straddling the end of the year: Texas/SW sites
+  mutate(in_95season = case_when(
+    taxon == "Cupressaceae" & site %in% TX_sites & ydays < 125 ~ "in 95% season", 
+    taxon == "Cupressaceae" & site %in% TX_sites & ydays >= 125 & ydays < 275 ~ "not in 95% season",
+    taxon == "Cupressaceae" & site %in% TX_sites & ydays >= 275 ~ "in 95% season",
+    TRUE ~ in_95season )) %>% 
+  #manual correction for Cupressaceae season straddling the end of the year: west coast sites
+  mutate(in_95season = case_when(
+    taxon == "Cupressaceae" & site %in% west_coast_sites & ydays < 200 ~ "in 95% season", 
+    taxon == "Cupressaceae" & site %in% west_coast_sites & ydays >= 200 & ydays < 300 ~ "not in 95% season",
+    taxon == "Cupressaceae" & site %in% west_coast_sites & ydays >= 300 ~ "in 95% season",
+    TRUE ~ in_95season )) %>% 
+  #same but for 99% season
+  mutate(in_99polseason = case_when(
+    taxon == "Cupressaceae" & site %in% TX_sites & ydays < 115 ~ "in 99% season", 
+    taxon == "Cupressaceae" & site %in% TX_sites & ydays >= 115 & ydays < 255 ~ "not in 99% season",
+    taxon == "Cupressaceae" & site %in% TX_sites & ydays >= 255 ~ "in 99% season",
+    TRUE ~ in_99polseason )) %>% 
+  #manual correction for Cupressaceae season straddling the end of the year: west coast sites
+  mutate(in_99polseason = case_when(
+    taxon == "Cupressaceae" & site %in% west_coast_sites & ydays < 180 ~ "in 99% season", 
+    taxon == "Cupressaceae" & site %in% west_coast_sites & ydays >= 180 & ydays < 290 ~ "not in 99% season",
+    taxon == "Cupressaceae" & site %in% west_coast_sites & ydays >= 290 ~ "in 99% season",
+    TRUE ~ in_99polseason ))
+
+
+
+#visual checks of NAB season definitions
+nab_seasons %>% 
+  filter(taxon == "Cupressaceae") %>% 
+  #filter(years > 2011) %>% 
+  filter(sum_pol_season > 200) %>% 
+  #filter(nobs_yes_per_season > 50) %>% 
+  #filter(in_npn_95season == "in 95% season") %>% 
+  ggplot(aes(x = ydays, y = polpct, group = as.factor(years),
+             color = in_95season)) + geom_point() + facet_wrap(~site) + theme_bw() 
+
+#visual checks of NAB season definitions: 99%
+nab_seasons %>% 
+  filter(taxon == "Quercus") %>% 
+  #filter(years > 2011) %>% 
+  filter(sum_pol_season > 200) %>% 
+  #filter(nobs_yes_per_season > 50) %>% 
+  #filter(in_npn_95season == "in 95% season") %>% 
+  ggplot(aes(x = ydays, y = polpct, group = as.factor(years),
+             color = in_99polseason)) + geom_point() + facet_wrap(~site) + theme_bw() 
 
 
 ####### load in and prepare NPN data ###############################################################
 #npn_raw <- read_csv("data/200mibuffer_8-12-21.csv", guess_max = 672676)
 #npn_raw <- read_csv("data/200mibuffer-inclusive_220128.csv", guess_max = 672676)
-npn_raw <- read_csv("C:/Users/danka/Box/Cornell/1 national pollen model/NAB_NPN/npn_200mi_2c_220321.csv")
+npn_raw <- read_csv("C:/Users/danka/Box/Cornell/National pollen model/NAB_NPN/npn_200mi_2c_220321.csv")
 
 filt_tmean_dif <- 2 #filter NPN observations that are within X degrees Celsius of the nearest NAB station
 
@@ -165,29 +227,30 @@ date_station_grid_npn <- expand_grid(seq(min(npn$dates), max(npn$dates), by = '1
          phenophase_status = NA,
          flow_prop = NA)
 
-# CALCULATE PROPORTION OF "YES" RECORDS FOR FLOWERING (npn_summary$mean_prop_flow)
+# CALCULATE PROPORTION OF "YES" RECORDS FOR FLOWERING for each taxon x site x date (npn_summary$mean_prop_flow)
 npn_summary <- 
   bind_rows(date_station_grid_npn, npn) %>% 
   arrange(taxon, site, years, dates) %>% 
-  group_by(taxon, site, years, dates, doy) %>% 
-  dplyr::summarize(mean_flow = mean(phenophase_status),
-                   mean_prop_flow = mean(flow_prop),
+  group_by(taxon, site, years, dates) %>% 
+  dplyr::summarize(mean_flow = mean(phenophase_status, na.rm = TRUE),
+                   mean_prop_flow = mean(flow_prop, na.rm = TRUE),
                    n_obs = sum(!is.na(observation_id))) %>% #do not include NA values in n() calculation
   ungroup() %>% 
   mutate(doy = yday(dates), #include some derived date variables that were missing earlier
          date_noyr = format(dates, format="%m-%d"))
 
 
-# CALCULATES NUMBER OF NN OBS PER YEAR - used for filtering out taxa w/few records later on in script
+# CALCULATE NUMBER OF NN OBS PER YEAR - used for filtering out taxa w/few records later on in script
 npn_season_summary_nobs <- npn_summary %>% 
   group_by(taxon, years, site) %>% 
   dplyr::summarize(nobs_per_season = sum(n_obs))
+
 npn_season_summary_nobs_open_flow <- npn %>% 
   filter(phenophase_status == 1) %>% 
   group_by(taxon, years, site) %>% 
   dplyr::summarize(nobs_yes_per_season = n())
 
-# CALCULATES 7-day MOVING AVERAGE FOR NN OPEN FLOWERS
+# CALCULATE 7-day MOVING AVERAGE FOR NN OPEN FLOWERS
 npn_join <-  left_join(npn_summary, npn_season_summary_nobs) %>% 
   left_join(., npn_season_summary_nobs_open_flow) %>% 
   filter(nobs_yes_per_season > 0) %>% 
@@ -198,33 +261,97 @@ npn_join <-  left_join(npn_summary, npn_season_summary_nobs) %>%
          mean_nobs_ma = round(rollmean(n_obs, 7, na.pad=TRUE),2))
 
 
+#figure out the unique number of observers per taxon x site x year
+npn_nobs_season <- npn %>% 
+  dplyr::select(site, taxon, years, individual_id) %>% 
+  distinct()%>% 
+  group_by(site, taxon, years) %>% 
+  summarize(unique_observers = n()) 
 
 
-##### figure out DOY for 2.5% and 97.% of "open flowers" #############################################
+
+##### season definitions for NPN  #############################################
 # fill in any NAs in mean_prop_flow_m_ma with 0.0
 npn_join[c("mean_prop_flow")][is.na(npn_join[c("mean_prop_flow")])] <- 0 
 
+
+# #define the pollen season within a year
+# npn_focal_season_integral <- npn_join %>% 
+#   group_by(site, taxon, years) %>% 
+#   summarize(sum_mean_prop_flow = sum(mean_prop_flow, na.rm = TRUE))
+
+#for defining the pollen season across years
 npn_focal_season_integral <- npn_join %>% 
+  filter(nobs_yes_per_season > 10) %>% 
   group_by(site, taxon) %>% 
   summarize(sum_mean_prop_flow = sum(mean_prop_flow, na.rm = TRUE))
 
-#add cumulative sum field (by site*taxon*year) and define 95% season
+
+#add cumulative sum field (by site*taxon) and define 95% season across all years
 #switched over to using the proportion of flowers that were open to define season; 
 #not using interpolated data or NAs in season definitions
+TX_sites <- c("Austin", "Dallas", "Flower Mound", "Houston", "San Antonio B", "Waco A", "Waco B")
+
 npn_seasons <- npn_join %>% left_join(., npn_focal_season_integral) %>% 
-  group_by(site, taxon) %>% 
-  arrange(site, taxon, doy) %>% 
-  #filter(nobs_yes_per_season > 50) %>% 
+  left_join(., npn_nobs_season) %>% 
+  group_by(site, taxon) %>%  #Could add years here to convert to season definition within year
+  arrange(site, taxon, doy, years) %>% 
+  filter(nobs_yes_per_season > 10) %>% 
   mutate(cumu_flow = cumsum(replace_na(mean_prop_flow, 0)),  #cumulative sum of pollen #putting NAs as 0s for calculating seasonal sums 
          cumu_flow_r = cumu_flow/sum_mean_prop_flow,          #relative sum of pollen
          in_npn_95season = case_when(cumu_flow_r < 0.025 ~ "not in 95% season", #is the observation in the 95% pollen season?
                                      cumu_flow_r >= 0.025 & cumu_flow_r <= 0.975~ "in 95% season",
-                                     cumu_flow_r > 0.975 ~ "not in 95% season")) %>% 
+                                     cumu_flow_r > 0.975 ~ "not in 95% season"),
+         in_npn_99season = case_when(cumu_flow_r < 0.005 ~ "not in 99% season", #is the observation in the 99% pollen season?
+                                     cumu_flow_r >= 0.005 & cumu_flow_r <= 0.995~ "in 99% season",
+                                     cumu_flow_r > 0.995 ~ "not in 99% season")) %>% 
   #manual correction for Cupressaceae season straddling the end of the year
-  mutate(in_npn_95season = case_when(taxon == "Cupressaceae" & site == "Carrolton" & doy < 145 ~ "in 95% season", 
-                                     taxon == "Cupressaceae" & site == "Carrolton" & doy >= 145 & doy < 345~ "not in 95% season",
-                                     taxon == "Cupressaceae" & site == "Carrolton" & doy >= 345 ~ "in 95% season",
-                                     TRUE ~ in_npn_95season))
+  mutate(in_npn_95season = case_when(taxon == "Cupressaceae" & site %in% TX_sites & doy < 125 ~ "in 95% season", 
+                                     taxon == "Cupressaceae" & site %in% TX_sites & doy >= 125 & doy < 330 ~ "not in 95% season",
+                                     taxon == "Cupressaceae" & site %in% TX_sites & doy >= 330 ~ "in 95% season",
+                                     TRUE ~ in_npn_95season),
+         in_npn_99season = case_when(taxon == "Cupressaceae" & site %in% TX_sites & doy < 120 ~ "in 99% season", 
+                                     taxon == "Cupressaceae" & site %in% TX_sites & doy >= 120 & doy < 310 ~ "not in 99% season",
+                                     taxon == "Cupressaceae" & site %in% TX_sites & doy >= 310 ~ "in 99% season",
+                                     TRUE ~ in_npn_99season))
+
+#visual checks of NPN season definitions
+npn_seasons %>% 
+  filter(taxon == "Quercus") %>% 
+  #filter(nobs_yes_per_season > 50) %>% 
+  #filter(in_npn_95season == "in 95% season") %>% 
+  ggplot(aes(x = doy, y = mean_prop_flow_m_ma, group = as.factor(years),
+             color = in_npn_95season)) + geom_point() + facet_grid(site~years) + theme_bw() 
+
+npn_seasons %>% 
+  filter(taxon == "Quercus") %>% 
+  #filter(nobs_yes_per_season > 50) %>% 
+  #filter(in_npn_95season == "in 95% season") %>% 
+  ggplot(aes(x = doy, y = mean_prop_flow_m_ma, group = as.factor(years),
+             color = in_npn_99season)) + geom_point() + facet_grid(site~years) + theme_bw() 
+
+
+
+# test2 <- npn_seasons %>% 
+#   filter(site == "Armonk") %>%  #unique(nabnpn$site)
+#   filter(taxon == "Quercus") #unique(nabnpn$taxon)
+#  # filter(years == 2018 | years == 2019) 
+# #npn_seasons <- 
+#   npn_join %>% left_join(., npn_focal_season_integral) %>% 
+#   group_by(site, taxon) %>% 
+#   arrange(site, taxon, doy) %>% 
+#   #filter(nobs_yes_per_season > 50) %>% 
+#   mutate(cumu_flow = cumsum(replace_na(mean_prop_flow, 0)),  #cumulative sum of pollen #putting NAs as 0s for calculating seasonal sums 
+#          cumu_flow_r = cumu_flow/sum_mean_prop_flow,          #relative sum of pollen
+#          in_npn_95season = case_when(cumu_flow_r < 0.025 ~ "not in 95% season", #is the observation in the 95% pollen season?
+#                                      cumu_flow_r >= 0.025 & cumu_flow_r <= 0.975~ "in 95% season",
+#                                      cumu_flow_r > 0.975 ~ "not in 95% season")) %>% 
+#   #manual correction for Cupressaceae season straddling the end of the year
+#   mutate(in_npn_95season = case_when(taxon == "Cupressaceae" & site == "Carrolton" & doy < 145 ~ "in 95% season", 
+#                                      taxon == "Cupressaceae" & site == "Carrolton" & doy >= 145 & doy < 345~ "not in 95% season",
+#                                      taxon == "Cupressaceae" & site == "Carrolton" & doy >= 345 ~ "in 95% season",
+#                                      TRUE ~ in_npn_95season))
+
 
 ### merge NAB & NPN ####################################################################
 
@@ -234,8 +361,8 @@ nab_seasons_join <- nab_seasons %>% rename(in_pol95season = in_95season)
 nabnpn <- left_join(nab_seasons_join, npn_seasons)
 
 unique(nabnpn$taxon)
-### data exploration ##################################################################
 
+### data exploration ##################################################################
 # #season summaries
 # nabnpn %>% dplyr::select(site, taxon, years, sum_pol) %>% distinct() 
 # 
@@ -255,6 +382,14 @@ nabnpn %>%
   ggplot(aes(x = doy, y = mean_prop_flow_m_ma, group = as.factor(years),
              color = in_npn_95season)) + geom_point() + facet_grid(site~taxon) + theme_bw() 
 
+nabnpn %>% 
+  filter(taxon == "Quercus") %>% 
+  filter(nobs_yes_per_season > 20) %>% 
+  #filter(in_npn_95season == "in 95% season") %>% 
+  ggplot(aes(x = doy, y = mean_prop_flow_m_ma, group = as.factor(years),
+             color = in_npn_95season)) + geom_point() + facet_grid(site~years) + theme_bw() 
+
+
 #visualize nab data
 nabnpn %>% 
   filter(site == "Armonk") %>% 
@@ -265,22 +400,25 @@ nabnpn %>%
 ## visualize a few time series as examples
 nabnpn %>% 
   filter(site == "Waterbury") %>%  #unique(nabnpn$site)
-  filter(taxon == "Acer") %>%  #unique(nabnpn$taxon)
-  filter(sum_pol > 200) %>% 
+  filter(taxon == "Quercus") %>%  #unique(nabnpn$taxon)
+  filter(sum_pol_season > 200) %>% 
   filter(nobs_yes_per_season > 50) %>% 
   filter(doy > 80 & doy < 155) %>% 
   ggplot(aes(x = as.Date(doy, origin = as.Date("2018-01-01")), y = mean_prop_flow_m_ma * 100)) + geom_line(col = "blue") + theme_few() + facet_wrap(~years) +
   geom_point(aes(x = as.Date(doy, origin = as.Date("2018-01-01")), y = polpct * 100)) + xlab("date") + 
   scale_y_continuous(name="flowering (% of observations)", sec.axis=sec_axis(~., name="airborne pollen (% of maximum)")) +
   theme(axis.title.y.left=element_text(color="blue"), axis.text.y.left=element_text(color="blue")) +
-  scale_x_date(date_labels = "%b")
+  scale_x_date(date_labels = "%b%d")
 
 
+
+### Fig 2: examples of time series and correlation #############################################################
+#panel A: Armonk Quercus time series
 nabnpn %>% 
   filter(site == "Armonk") %>%  #unique(nabnpn$site)
   filter(taxon == "Quercus") %>%  #unique(nabnpn$taxon)
-  filter(sum_pol > 200) %>% 
-  filter(years == 2018 | years == 2019) %>% 
+  filter(sum_pol_season > 200) %>% 
+  filter(years == 2018) %>% 
   filter(nobs_yes_per_season > 50) %>% 
   filter(doy > 95 & doy < 175) %>% 
   ggplot(aes(x = as.Date(doy, origin = as.Date("2018-01-01")), y = mean_prop_flow_m_ma * 100)) + geom_line(col = "blue") + 
@@ -288,7 +426,74 @@ nabnpn %>%
   geom_point(aes(x = as.Date(doy, origin = as.Date("2018-01-01")), y = polpct * 100)) + xlab("date") + 
   scale_y_continuous(name="flowering (% of observations)", sec.axis=sec_axis(~., name="airborne pollen (% of maximum)")) +
   theme(axis.title.y.left=element_text(color="blue"), axis.text.y.left=element_text(color="blue")) +
-  scale_x_date(date_labels = "%b %d")
+  scale_x_date(date_labels = "%b %d") +
+  geom_segment(x = as.Date(ymd("2018-04-19"), origin = as.Date("2019-01-01")), #pollen 95% season line
+               xend = as.Date(ymd("2018-05-25"), origin = as.Date("2019-01-01")),
+               y = -2, yend = -2, col = "black", lwd = 2)  +
+  geom_segment(x = as.Date(ymd("2018-04-06"), origin = as.Date("2019-01-01")), #pollen 95% flowering season line
+             xend = as.Date(ymd("2018-06-05"), origin = as.Date("2019-01-01")),
+             y = -3, yend = -3, col = "blue", lwd = 2)  
+
+#Panel B: Armonk Quercus correlation
+nabnpn %>% 
+  filter(site == fig_site) %>%  #unique(nabnpn$site)
+  filter(taxon == fig_taxon) %>%  #unique(nabnpn$taxon)
+  filter(years == fig_year) %>% 
+  filter(in_pol95season == "in 95% season" & in_npn_95season == "in 95% season") %>% 
+  #filter(nobs_yes_per_season > 50) %>% 
+  #filter(doy > 95 & doy < 175) %>% 
+  ggplot(aes(y = polpct * 100, x = mean_prop_flow_m_ma * 100)) + geom_point(alpha = 0.7) + 
+  theme_few() + ylab("airborne pollen (% of maximum)") + xlab("flowering (% of observations)")
+
+
+
+
+#add another example here
+fig_site <- "Armonk"
+fig_taxon <- "Acer"
+fig_year <- 2020
+fig_seasons <- nabnpn %>% filter(site == fig_site & taxon == fig_taxon & years == fig_year) %>%  
+  arrange(taxon, site, years, dates)
+ fig_season_pol_start <- fig_seasons$dates[min(which (fig_seasons$in_pol95season == "in 95% season"))]
+ fig_season_pol_end   <- fig_seasons$dates[max(which (fig_seasons$in_pol95season == "in 95% season"))]
+# fig_season_npn_start <- fig_seasons$dates[min(which (fig_seasons$in_npn_95season == "in 95% season"))]
+# fig_season_npn_end   <- fig_seasons$dates[max(which (fig_seasons$in_npn_95season == "in 95% season"))]
+fig_season_pol_start <- fig_seasons$dates[min(which (fig_seasons$in_99polseason == "in 99% season"))]
+fig_season_pol_end   <- fig_seasons$dates[max(which (fig_seasons$in_99polseason == "in 99% season"))]
+fig_season_npn_start <- fig_seasons$dates[min(which (fig_seasons$in_npn_99season == "in 99% season"))]
+fig_season_npn_end   <- fig_seasons$dates[max(which (fig_seasons$in_npn_99season == "in 99% season"))]
+
+nabnpn %>% 
+  filter(site == fig_site) %>%  #unique(nabnpn$site)
+  filter(taxon == fig_taxon) %>%  #unique(nabnpn$taxon)
+  filter(years == fig_year) %>% 
+   # filter(nobs_yes_per_season > 50) %>% 
+   # filter(sum_pol_season > 200) %>% 
+   # filter(doy > 75 & doy < 160) %>% 
+  ggplot(aes(x = dates, y = mean_prop_flow_m_ma * 100)) + geom_line(col = "blue") + 
+  theme_few() + facet_wrap(~years) +
+  geom_point(aes(x = dates, y = polpct * 100)) + xlab("date") + 
+  scale_y_continuous(name="flowering (% of observations)", sec.axis=sec_axis(~., name="airborne pollen (% of maximum)")) +
+  theme(axis.title.y.left=element_text(color="blue"), axis.text.y.left=element_text(color="blue")) +
+  #scale_x_date(date_labels = "%b %d") +
+  geom_segment(x = fig_season_pol_start, xend = fig_season_pol_end,#pollen 95% season line
+               y = -2, yend = -2, col = "black", lwd = 2)  +
+  geom_segment(x = fig_season_npn_start, xend = fig_season_npn_end,#npn 95% season line
+               y = -3, yend = -3, col = "blue", lwd = 2)  +
+  geom_line(aes(y= zoo::rollmean(polpct * 100, 7, na.pad=TRUE)), col = "red") 
+  
+
+nabnpn %>% 
+  filter(site == fig_site) %>%  #unique(nabnpn$site)
+  filter(taxon == fig_taxon) %>%  #unique(nabnpn$taxon)
+  filter(years == fig_year) %>% 
+  filter(in_pol95season == "in 95% season" & in_npn_95season == "in 95% season") %>% 
+  #filter(nobs_yes_per_season > 50) %>% 
+  #filter(doy > 95 & doy < 175) %>% 
+  ggplot(aes(y = polpct * 100, x = mean_prop_flow_m_ma * 100)) + geom_point(alpha = 0.7) + 
+  theme_few() + ylab("airborne pollen (% of maximum)") + xlab("flowering (% of observations)")
+  
+
 
 
 
@@ -296,41 +501,41 @@ nabnpn %>%
 
 ### Fig. 3: overall comparisons ###############################
 #comparing nab and npn data - Pearson's
-formula <- y ~ x 
-nabnpn %>% 
-  filter(sum_pol > 200) %>% 
-  filter(nobs_yes_per_season > 50) %>% 
-  filter(in_npn_95season == "in 95% season" & in_pol95season == "in 95% season") %>% 
-  ggplot(aes(x = mean_prop_flow_m_ma, y = pol + 1)) + 
-  geom_point(alpha = 0.5) + facet_grid(site~taxon) + theme_bw()  + scale_y_log10() +
-  geom_smooth(method = "lm", se = FALSE) +
-  stat_poly_eq(aes(label =  paste(stat(rr.label), stat(p.value.label), sep = "*\", \"*")),
-               formula = formula, parse = TRUE, label.x = .9, color = "black")
-
-#comparing nab and npn data - Pearson's - using scaled pollen values
-formula <- y ~ x 
-nabnpn %>% 
-  filter(sum_pol > 200) %>% 
-  filter(nobs_yes_per_season > 50) %>% 
-  filter(in_npn_95season == "in 95% season" & in_pol95season == "in 95% season") %>% 
-  ggplot(aes(x = mean_prop_flow_m_ma, y = polpct)) + theme_bw() + #  scale_y_log10() +
-  xlab("observed in flower (%)") + ylab("airborne pollen (% of maximum)") + 
-  geom_point(alpha = 0.5) + facet_wrap (site ~ taxon) +#facet_grid(site~taxon) + 
-  geom_smooth(method = "lm", se = FALSE) +
-  stat_cor(method = "pearson") 
-  # stat_poly_eq(aes(label =  paste(stat(rr.label), stat(p.value.label), sep = "*\", \"*")),
-  #              formula = formula, parse = TRUE, label.x = .9, color = "black")
-
-#comparing nab and npn data - Spearman's  - BUT - the "scale_y_log10" is still in here, do we need to remove that??
-formula <- y ~ x 
-nabnpn %>% 
-  filter(sum_pol > 200) %>% 
-  filter(nobs_yes_per_season > 50) %>% 
-  filter(in_npn_95season == "in 95% season" & in_pol95season == "in 95% season") %>% 
-  ggplot(aes(x = mean_prop_flow_m_ma, y = pol + 1)) + 
-  geom_point(alpha = 0.5) + facet_grid(site~taxon) + theme_bw()  + scale_y_log10() +
-  geom_smooth(method = "lm") + 
-  stat_cor(method = "spearman")
+# formula <- y ~ x 
+# nabnpn %>% 
+#   filter(sum_pol_season > 200) %>% 
+#   filter(nobs_yes_per_season > 50) %>% 
+#   filter(in_npn_95season == "in 95% season" & in_pol95season == "in 95% season") %>% 
+#   ggplot(aes(x = mean_prop_flow_m_ma, y = pol + 1)) + 
+#   geom_point(alpha = 0.5) + facet_grid(site~taxon) + theme_bw()  + scale_y_log10() +
+#   geom_smooth(method = "lm", se = FALSE) +
+#   stat_poly_eq(aes(label =  paste(stat(rr.label), stat(p.value.label), sep = "*\", \"*")),
+#                formula = formula, parse = TRUE, label.x = .9, color = "black")
+# 
+# #comparing nab and npn data - Pearson's - using scaled pollen values
+# formula <- y ~ x 
+# nabnpn %>% 
+#   filter(sum_pol > 200) %>% 
+#   filter(nobs_yes_per_season > 50) %>% 
+#   filter(in_npn_95season == "in 95% season" & in_pol95season == "in 95% season") %>% 
+#   ggplot(aes(x = mean_prop_flow_m_ma, y = polpct)) + theme_bw() + #  scale_y_log10() +
+#   xlab("observed in flower (%)") + ylab("airborne pollen (% of maximum)") + 
+#   geom_point(alpha = 0.5) + facet_wrap (site ~ taxon) +#facet_grid(site~taxon) + 
+#   geom_smooth(method = "lm", se = FALSE) +
+#   stat_cor(method = "pearson") 
+#   # stat_poly_eq(aes(label =  paste(stat(rr.label), stat(p.value.label), sep = "*\", \"*")),
+#   #              formula = formula, parse = TRUE, label.x = .9, color = "black")
+# 
+# #comparing nab and npn data - Spearman's  - BUT - the "scale_y_log10" is still in here, do we need to remove that??
+# formula <- y ~ x 
+# nabnpn %>% 
+#   filter(sum_pol > 200) %>% 
+#   filter(nobs_yes_per_season > 50) %>% 
+#   filter(in_npn_95season == "in 95% season" & in_pol95season == "in 95% season") %>% 
+#   ggplot(aes(x = mean_prop_flow_m_ma, y = pol + 1)) + 
+#   geom_point(alpha = 0.5) + facet_grid(site~taxon) + theme_bw()  + scale_y_log10() +
+#   geom_smooth(method = "lm") + 
+#   stat_cor(method = "spearman")
 
 #comparing nab and npn data - Spearman's - using scaled pollen values
 formula <- y ~ x 
@@ -346,28 +551,50 @@ nabnpn %>%
 
 
 ### creating a table of correlations by taxon x site
-cor_spear <- nabnpn %>%  
-  filter(sum_pol > 200) %>% 
-  filter(nobs_yes_per_season > 50) %>% 
+cor_spear_nobs <- nabnpn %>%  
+  #filter(sum_pol_season > 100) %>% 
+  #filter(nobs_yes_per_season > 50) %>% 
   filter(in_npn_95season == "in 95% season" & in_pol95season == "in 95% season") %>% 
-  #filter(site == "Armonk" & taxon == "Quercus") %>% 
+  filter(!is.na(mean_prop_flow_m_ma)) %>% 
+  filter(!is.na(polpct)) %>% 
+  group_by(site, taxon, years) %>% 
+  summarize(n_obs_comparison = n())
+            
+            
+cor_spear <- nabnpn %>%  
+  left_join(., cor_spear_nobs) %>% 
+  filter(sum_pol_season > 100) %>% 
+  filter(nobs_yes_per_season > 10) %>% 
+  filter(n_obs_comparison > 10) %>% 
+  #filter(in_npn_95season == "in 95% season" & in_pol95season == "in 95% season") %>% 
+  filter(in_npn_99season == "in 99% season" & in_99polseason == "in 99% season") %>% 
   filter(!is.na(mean_prop_flow_m_ma)) %>% 
   filter(!is.na(polpct)) %>% 
   group_by(site, taxon, years) %>% 
   summarize(n_obs = n(),
-            cor_spear = cor(mean_prop_flow_m_ma, polpct, method = "spearman"),
-            cor_p_value = cor.test(mean_prop_flow_m_ma, polpct, method = "spearman")$p.value) %>% 
+            cor_spear = cor(mean_prop_flow_m_ma, polpct, method = "spearman", use="complete.obs"),
+            cor_p_value = cor.test(mean_prop_flow_m_ma, polpct, method = "spearman", use="complete.obs")$p.value,
+            unique_observers = mean(unique_observers)
+            ) %>% 
   mutate(cor_spear = round(cor_spear, 2)) %>% 
   arrange(taxon)
 cor_spear #unique(cor_spear$taxon)
-write_csv(cor_spear, "C:/Users/danka/Box/things for other people/NAB_NPN/spearman_taxon_site_year_220322.csv")
+#write_csv(cor_spear, "C:/Users/danka/Box/things for other people/NAB_NPN/spearman_taxon_site_year_220407.csv")
 #write.table(cor_spear, "clipboard", sep="\t", row.names=FALSE, col.names=FALSE)
 #dir()
+
+cor_spear %>%  #filter(taxon == "Acer") %>% 
+  ungroup() %>% 
+  summarize(spear_mean = mean(cor_spear, na.rm = TRUE),
+            spear_sd = sd(cor_spear, na.rm = TRUE))
+  
 
 ggplot(cor_spear, aes(x = taxon, y = cor_spear)) + 
   geom_boxplot(outlier.shape = NA) + geom_jitter(aes(color = site), width = 0.2) + ggthemes::theme_few() +
   ylab("Spearman correlation between airborne pollen and flowering") +
   theme(axis.text.x = element_text(face = "italic"))
+
+
 
 # 
 # # creating a similar table without the temperature restriction 
@@ -409,7 +636,7 @@ acer_ny <- npn_raw %>%
   #          species == "saccharinum" | 
   #          species == "negundo"
   #        ) %>% 
-  filter(NABStn == "Springfield") %>% 
+  filter(NAB_station == "Springfield") %>% 
   filter(distNAB < 321869 * 1) %>% #321869 = 200 miles
   filter(day_of_year > 50) %>% 
   filter(day_of_year < 150) %>% 
