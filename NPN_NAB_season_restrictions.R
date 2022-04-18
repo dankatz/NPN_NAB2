@@ -706,11 +706,17 @@ cor_spear <- nabnpn %>%
             tmean = mean(tmean, na.rm = TRUE),
             distNAB_mean = mean(distNAB_mean, na.rm = TRUE)
             ) %>% 
-  mutate(cor_spear = round(cor_spear, 2)) %>% 
-  arrange(taxon)
+  mutate(cor_spear = round(cor_spear, 2),
+         cor_p_value_discrete = case_when(cor_p_value >= 0.05 ~ "ns",
+                                          cor_p_value < 0.05 &
+                                          cor_p_value >= 0.01 ~ "p < 0.05",
+                                          cor_p_value < 0.01 ~ "p < 0.01")) %>% 
+  mutate(cor_p_value_discrete = factor(cor_p_value_discrete, levels = c("ns", "p < 0.05", "p < 0.01"))) %>% 
+  arrange(taxon) %>% 
+  filter(!is.na(cor_spear))
 cor_spear #unique(cor_spear$taxon)
 
-#write_csv(cor_spear, "C:/Users/danka/Box/things for other people/NAB_NPN/spearman_taxon_site_year_220407.csv")
+#write_csv(cor_spear, "C:/Users/danka/Box/things for other people/NAB_NPN/spearman_taxon_site_year_220416.csv")
 #write.table(cor_spear, "clipboard", sep="\t", row.names=FALSE, col.names=FALSE)
 #dir()
 #cor_spear_2d_200mi <- cor_spear
@@ -736,9 +742,12 @@ cor_spear %>%
             spear_sd = sd(cor_spear, na.rm = TRUE))
 
 ggplot(cor_spear, aes(x = taxon, y = cor_spear)) + 
-  geom_boxplot(outlier.shape = NA) + geom_jitter(aes(group = site), width = 0.1, alpha = .5) + ggthemes::theme_few() +
+  geom_hline(yintercept = 0, lty = 2) +
+  geom_boxplot(outlier.shape = NA) + geom_jitter(aes(group = site,
+         color = cor_p_value_discrete), width = 0.1, alpha = .15) + ggthemes::theme_few() +
   ylab("Spearman correlation between airborne pollen and flowering") +
-  theme(axis.text.x = element_text(face = "italic")) + scale_color_viridis_c()
+  theme(axis.text.x = element_text(face = "italic")) + 
+  scale_color_manual(values = c("gray30", "dodgerblue4", "blue4"), name = "") 
 
 length(unique(nabnpn$site))
 
