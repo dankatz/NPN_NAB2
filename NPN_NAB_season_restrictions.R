@@ -190,11 +190,11 @@ nab_seasons %>%
 #npn_raw <- read_csv("data/200mibuffer-inclusive_220128.csv", guess_max = 672676)
 npn_raw <- read_csv("C:/Users/danka/Box/Cornell/National pollen model/NAB_NPN/npn_200mi_2c_220321.csv")
 
-filt_tmean_dif <- 2 #filter NPN observations that are within X degrees Celsius of the nearest NAB station
+filt_tmean_dif <- 3 #filter NPN observations that are within X degrees Celsius of the nearest NAB station
 
 npn <- npn_raw %>% 
   filter(tmean_dif > -filt_tmean_dif & tmean_dif < filt_tmean_dif) %>% #MAT filtering
-  filter(distNAB < 321869 * 1) %>% #filter by distance from NAB; 321869 = 200 miles
+  filter(distNAB < 321869 * 1) %>% #filter by distance from NAB; 160934 = 100 miles, 321869 = 200 miles, 482803 = 300 miles
   mutate(years = year(observation_date),
          doy = yday(observation_date),
          dates_noyr = format(observation_date, format="%m-%d"),
@@ -242,7 +242,9 @@ npn_summary <-
                    n_obs = sum(!is.na(observation_id)),
                    tmean = mean(tmean, na.rm = TRUE),
                    tmean_NAB = mean(tmean_NAB, na.rm = TRUE),
-                   distNAB_mean = mean(distNAB, na.rm = TRUE)) %>% #do not include NA values in n() calculation
+                   distNAB_mean = mean(distNAB, na.rm = TRUE),
+                   lat_mean = mean(latitude, na.rm = TRUE),
+                   long_mean = mean(longitude, na.rm = TRUE)) %>% #do not include NA values in n() calculation
   ungroup() %>% 
   mutate(doy = yday(dates), #include some derived date variables that were missing earlier
          date_noyr = format(dates, format="%m-%d"))
@@ -704,6 +706,8 @@ cor_spear <- nabnpn %>%
             unique_observers = mean(unique_observers),
             tmean_dif = mean(tmean_dif, na.rm = TRUE),
             tmean = mean(tmean, na.rm = TRUE),
+            lat_mean = mean(lat_mean, na.rm = TRUE),
+            long_mean = mean(long_mean, na.rm = TRUE),
             distNAB_mean = mean(distNAB_mean, na.rm = TRUE)
             ) %>% 
   mutate(cor_spear = round(cor_spear, 2),
@@ -717,6 +721,7 @@ cor_spear <- nabnpn %>%
 cor_spear #unique(cor_spear$taxon)
 
 #write_csv(cor_spear, "C:/Users/danka/Box/things for other people/NAB_NPN/spearman_taxon_site_year_220416.csv")
+#write_csv(cor_spear, "C:/Users/danka/Box/things for other people/NAB_NPN/spearman_taxon_site_year_220419_1c.csv")
 #write.table(cor_spear, "clipboard", sep="\t", row.names=FALSE, col.names=FALSE)
 #dir()
 #cor_spear_2d_200mi <- cor_spear
@@ -749,7 +754,38 @@ ggplot(cor_spear, aes(x = taxon, y = cor_spear)) +
   theme(axis.text.x = element_text(face = "italic")) + 
   scale_color_manual(values = c("gray30", "dodgerblue4", "blue4"), name = "") 
 
+
+# #latitude
+# ggplot(cor_spear, aes(x = taxon, y = cor_spear)) + 
+#   geom_hline(yintercept = 0, lty = 2) +
+#   geom_boxplot(outlier.shape = NA) + geom_jitter(aes(group = site, color = lat_mean), width = 0.1, ) + ggthemes::theme_few() +
+#   ylab("Spearman correlation between airborne pollen and flowering") +
+#   theme(axis.text.x = element_text(face = "italic")) + 
+#   scale_color_viridis_c()
+
+
+#latitude
+ggplot(cor_spear, aes(x = as.factor(site), y = cor_spear)) +
+  geom_hline(yintercept = 0, lty = 2) +
+  geom_boxplot(outlier.shape = NA) + 
+  geom_jitter(aes(group = as.factor(years)), width = 0.1) + 
+  ggthemes::theme_few() +
+  ylab("Spearman correlation between airborne pollen and flowering") +
+  theme(axis.text.x = element_text(face = "italic")) +
+  facet_wrap(~taxon)
+  
+#geographic
+ggplot(cor_spear, aes(x = long_mean, y = lat_mean, color = cor_spear)) +
+  geom_jitter(aes(group = as.factor(years)), width = 0.01) + 
+  ggthemes::theme_few() +
+  scale_color_viridis_c() +
+  facet_wrap(~taxon)
+
+
+
 length(unique(nabnpn$site))
+
+
 
  
 # # creating a similar table without the temperature restriction 
