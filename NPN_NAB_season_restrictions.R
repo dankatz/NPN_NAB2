@@ -194,7 +194,7 @@ filt_tmean_dif <- 3 #filter NPN observations that are within X degrees Celsius o
 
 npn <- npn_raw %>% 
   filter(tmean_dif > -filt_tmean_dif & tmean_dif < filt_tmean_dif) %>% #MAT filtering
-  filter(distNAB < 321869 * 1) %>% #filter by distance from NAB; 160934 = 100 miles, 321869 = 200 miles, 482803 = 300 miles
+  filter(distNAB < (100 * 1000)) %>% #filter by distance from NAB; needs it in meters #160934 = 100 miles, 321869 = 200 miles, 482803 = 300 miles
   mutate(years = year(observation_date),
          doy = yday(observation_date),
          dates_noyr = format(observation_date, format="%m-%d"),
@@ -350,12 +350,17 @@ npn_seasons <- npn_join %>% left_join(., npn_focal_season_integral) %>%
 #prepare NAB data for joining
 nab_seasons_join <- nab_seasons %>% rename(in_pol95season = in_95season)
 
-nabnpn <- left_join(nab_seasons_join, npn_seasons)
+nabnpn <- left_join(nab_seasons_join, npn_seasons) 
+nabnpn <- nabnpn %>% mutate(taxon_labs = paste0("italic('", taxon,"')"))
 
 #unique(nabnpn$taxon)
 
-
-
+nabnpn %>% 
+  sample_n(1) %>% 
+ggplot(aes(x = taxon_labs, y = years)) + geom_point() +
+  scale_x_discrete(labels = taxon_labs)
+  
+# labs(x=expression(paste("X comes from ",italic("normal distribution")))
 
 
 ### data exploration ##################################################################
@@ -726,6 +731,15 @@ cor_spear #unique(cor_spear$taxon)
 #dir()
 #cor_spear_2d_200mi <- cor_spear
 
+ggplot(cor_spear, aes(x = taxon, y = cor_spear)) + 
+  geom_hline(yintercept = 0, lty = 2) +
+  geom_boxplot(outlier.shape = NA) + geom_jitter(aes(group = site,
+                                                     color = cor_p_value_discrete), width = 0.1, alpha = .15) + ggthemes::theme_few() +
+  ylab("Spearman correlation between airborne pollen and flowering") +
+  theme(axis.text.x = element_text(face = "italic")) + 
+  scale_color_manual(values = c("gray30", "dodgerblue4", "blue4"), name = "") 
+
+
 cor_spear %>%  filter(taxon == "Cupressaceae") %>% 
   ungroup() %>% 
   summarize(spear_mean = mean(cor_spear, na.rm = TRUE),
@@ -746,13 +760,7 @@ cor_spear %>%
   summarize(spear_mean = mean(cor_spear, na.rm = TRUE),
             spear_sd = sd(cor_spear, na.rm = TRUE))
 
-ggplot(cor_spear, aes(x = taxon, y = cor_spear)) + 
-  geom_hline(yintercept = 0, lty = 2) +
-  geom_boxplot(outlier.shape = NA) + geom_jitter(aes(group = site,
-         color = cor_p_value_discrete), width = 0.1, alpha = .15) + ggthemes::theme_few() +
-  ylab("Spearman correlation between airborne pollen and flowering") +
-  theme(axis.text.x = element_text(face = "italic")) + 
-  scale_color_manual(values = c("gray30", "dodgerblue4", "blue4"), name = "") 
+
 
 
 # #latitude
