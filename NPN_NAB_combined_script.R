@@ -1,10 +1,8 @@
 ### NPN-NAB comparison manuscript  ####################################################################
 # Current project participants:
-# Liz Vogt, Theresa Crimmins, Arie Managan, Claudia Brown, Dan Dalan, and Dan Katz
+# Liz Vogt, Theresa Crimmins, Arie Managan, Claudia Brown, Dan Dalan, Kai Zhu, Yiluan Song, and Dan Katz
 # This script includes data assembly, analysis, and visualization and is the compilation of several 
 # previous versions, also stored in this repo
-#
-# Note: DK is  working on assembling and cleaning up this script (April 27; check back in a day or two for a prettier version)
 
 ### set up working environment #######################################################################
 library(dplyr)
@@ -156,7 +154,7 @@ npn_active_flow <- left_join(npn_active_flow, npn_active_flow3)
 
 ### extract mean annual air temperature for each selected NAB site --------------------------------
 #NAB data were assembled in this script: #C:/Users/danka/Box/texas/NAB/extract_pollen_data_from_NPNdata220308.R
-NAB <- read_csv(here("data", "NAB_data_request_220308e.csv")) #contact Dan K if you have any questions about this dataset
+NAB <- read_csv(here("data", "NAB_data_request_220308e.csv")) #contact Dan Katz if you have any questions about this dataset
 
 #extract temperature for the NAB stations and add it to active flowers dataframe
 NAB_coords <- NAB %>% dplyr::select(NAB_station, Lat, Long) %>% 
@@ -246,7 +244,12 @@ nab <- left_join(date_station_grid, nab_raw) %>%
                names_to = "taxon", values_to = "pol") %>% 
   arrange(site, taxon, dates) %>% 
   mutate(years = year(dates),
-         ydays = yday(dates))
+         ydays = yday(dates)) 
+
+nab <- nab %>% #filter(taxon == "Ulmus") %>% 
+  mutate(taxon = case_when(taxon == "Ulmus" & ydays > 175 & site != "Santa Barbara" ~ "Ulmus_fall", 
+         TRUE ~ taxon))
+
 
 # rescale pollen counts to 0-1 
 nab <- nab %>%
@@ -335,14 +338,15 @@ nab_seasons <- nab %>%
 
 
 # #visual checks of NAB season definitions
-# nab_seasons %>% 
-#   filter(taxon == "Cupressaceae") %>% 
-#   #filter(years > 2011) %>% 
-#   filter(sum_pol_season > 200) %>% 
-#   #filter(nobs_yes_per_season > 50) %>% 
-#   #filter(in_npn_95season == "in 95% season") %>% 
-#   ggplot(aes(x = ydays, y = polpct, group = as.factor(years),
-#              color = in_95season)) + geom_point() + facet_wrap(~site) + theme_bw() 
+nab_seasons %>%
+  filter(taxon == "Cupressaceae") %>%
+  #filter(taxon == "Ulmus") %>%
+  #filter(years > 2011) %>%
+  #filter(sum_pol_season > 200) %>%
+  #filter(nobs_yes_per_season > 50) %>%
+  #filter(in_npn_95season == "in 95% season") %>%
+  ggplot(aes(x = ydays, y = polpct, group = as.factor(years),
+             color = in_99polseason)) + geom_point() + facet_wrap(~site) + theme_bw()
 # 
 # #visual checks of NAB season definitions: 99%
 # nab_seasons %>% 
@@ -502,12 +506,12 @@ npn_seasons <- npn_join %>% left_join(., npn_focal_season_integral) %>%
 #   ggplot(aes(x = doy, y = mean_prop_flow_ma, group = as.factor(years),
 #              color = in_npn_95season)) + geom_point() + facet_grid(site~years) + theme_bw()
 # 
-# npn_seasons %>% 
-#   filter(taxon == "Quercus") %>% 
-#   #filter(nobs_yes_per_season > 50) %>% 
-#   #filter(in_npn_95season == "in 95% season") %>% 
-#   ggplot(aes(x = doy, y = mean_prop_flow_m_ma, group = as.factor(years),
-#              color = in_npn_99season)) + geom_point() + facet_grid(site~years) + theme_bw() 
+npn_seasons %>%
+  filter(taxon == "Ulmus") %>%
+  #filter(nobs_yes_per_season > 50) %>%
+  #filter(in_npn_95season == "in 95% season") %>%
+  ggplot(aes(x = doy, y = mean_prop_flow_m_ma, group = as.factor(years),
+             color = in_npn_99season)) + geom_point() + facet_grid(site~years) + theme_bw()
 
 
 
@@ -746,6 +750,14 @@ panel_c <- nabnpn %>%
 cowplot::plot_grid(panel_a, panel_b, panel_c, nrow = 3)
 
 
+
+### Fig. 3: mean annual temperature ###########################
+
+## Panel A: DOY of season peak for Quercus as a function of mean annual temperature
+
+## Panel B: map of US with color of predicted peak DOY
+
+## Panel C: predicted peak DOY based on NPN-MAT compared to observed NAB peak
 
 
 ### Fig. 3: overall comparisons ###############################
