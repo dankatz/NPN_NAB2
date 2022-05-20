@@ -52,7 +52,7 @@ list_all_focal_taxa <- c(acer_species_list, alnus_species_list, betula_species_l
                          populus_species_list, quercus_species_list, ulmus_species_list,
                          ambrosia_species_list, pinus_species_list, cupressaceae_species_list)
 
-###download and process data -------------------------------------------------------------
+### download and process data -------------------------------------------------------------
 npn_direct <- read_csv( here("data", "NPN_220308.csv")) #try reading in data if it's already downloaded
 if(exists("npn_direct") == FALSE){ #does the npn_direct object exist? If not, download it:
 npn_direct <- npn_download_status_data(
@@ -106,27 +106,34 @@ npn_direct_flag <- merge(npn_direct, lowconflict_sites, by="site_id")
 #npn_direct <- read_csv("data/npn_direct_220128.csv")
 npn_flow <- filter(npn_direct_flag, phenophase_id == 501 | phenophase_id == 495)
 
+
 # flowering intensity value (which is entered about 82% of the time)
 npn_active_flow <- npn_flow %>%
   filter(phenophase_status != -1) %>% #removing observations where the observer was unsure whether the phenophase was occurring
-  mutate(flow_prop = case_when(
-    phenophase_status == 0  ~ 0,
-    intensity_value == "Less than 5%" ~ 0.025,
-    intensity_value ==  "5-24%"~ (0.05+0.24)/2,
-    intensity_value == "25-49%" ~ (0.25+0.49)/2,
-    intensity_value == "50-74%" ~ (0.5+0.74)/2,
-    intensity_value == "75-94%" ~ (0.75+0.94)/2,
-    intensity_value == "95% or more" ~ 0.97,
-    phenophase_status == 1  ~ 0.5)) #assuming that when intensity value isn't given, a tree is halfway through flowering
+  filter(intensity_value != -9999) %>% 
+  mutate(
+    yr = year(observation_date), 
+    flow_prop = case_when(
+      phenophase_status == 0  ~ 0,
+      intensity_value == "Less than 5%" ~ 0.025,
+      intensity_value ==  "5-24%"~ (0.05+0.24)/2,
+      intensity_value == "25-49%" ~ (0.25+0.49)/2,
+      intensity_value == "50-74%" ~ (0.5+0.74)/2,
+      intensity_value == "75-94%" ~ (0.75+0.94)/2,
+      intensity_value == "95% or more" ~ 0.97)) 
 hist(npn_active_flow$flow_prop)
 
-#how many observations are for pollen release?                    
-filter(npn_direct, phenophase_id == 502 | phenophase_id == 503) %>% 
+#observations for pollen release
+npn_pol <- filter(npn_direct_flag, phenophase_id == 502 | phenophase_id == 503) %>% 
+  filter(phenophase_status != -1)
+
+npn_pol %>% 
   group_by(phenophase_status) %>% 
   dplyr::summarize(n_obs = n())
 
 
-### extract mean annual air temperature for each NPN observation site -----------------------------
+### extract mean annual air temperature for each NPN observation site: flowers -----------------------------
+### Mean annual temperature 
 npn_active_flow_sf <- npn_active_flow %>% 
   dplyr::select(longitude, latitude, site_id) %>% 
   distinct() %>% 
@@ -151,6 +158,66 @@ npn_active_flow3 <- npn_active_flow_sf %>%
 npn_active_flow3$geometry <- NULL
 npn_active_flow <- left_join(npn_active_flow, npn_active_flow3)
 
+### average temperature of January - April ------------------------------------------------
+npn_active_flow_yr_sf <- npn_active_flow %>% 
+  dplyr::select(longitude, latitude, site_id, yr) %>% 
+  distinct() %>% 
+  st_as_sf(coords = c( "longitude", "latitude"), crs = 4326) 
+
+prism_set_dl_dir("~/prism")
+#get_prism_monthlys(type = "tmean", years = 2009:2021, keepZip = TRUE, mon = 1:4)
+
+#function to extract time period for each year of data
+extract_temp_yr <- function(focal_yr){
+  tmean_rast_yr_mo <- prism_archive_subset(temp_period = "monthly", type = "tmean", years = focal_yr, mon = 1:4)
+  tmean_rast2_yr_mo <- pd_stack(tmean_rast_yr_mo)
+  r_mean <- raster::calc(tmean_rast2_yr_mo, mean)
+  
+  npn_active_flow_yr_sf_focal_yr <- filter(npn_active_flow_yr_sf, yr == focal_yr)
+  tmean_data <- unlist(raster::extract(x = r_mean, 
+                                       y = npn_active_flow_yr_sf_focal_yr)) %>% as.data.frame()  
+  
+  npn_active_flow_yr_sf_focal_yr2 <- npn_active_flow_yr_sf_focal_yr %>%  
+    dplyr::select(site_id, yr) %>% 
+    mutate(tmean_jan_apr = as.numeric(unlist(tmean_data)))
+  
+  npn_active_flow_yr_sf_focal_yr2$geometry <- NULL
+  print(focal_yr)
+  return(npn_active_flow_yr_sf_focal_yr2)
+}
+
+#extract_temp_yr(focal_yr = 2010, mo_start = 1, mo_end = 4)
+spring_temp_site_yr <- purrr::map_dfr(.x = 2009:2021, .f = extract_temp_yr)
+npn_active_flow <- left_join(npn_active_flow, spring_temp_site_yr)
+
+
+
+
+
+### extract mean annual air temperature for each NPN observation site: pollen -----------------------------
+# npn_pol_sf <- npn_pol %>% 
+#   dplyr::select(longitude, latitude, site_id) %>% 
+#   distinct() %>% 
+#   st_as_sf(coords = c( "longitude", "latitude"), crs = 4326) 
+# 
+# 
+# prism_set_dl_dir("~/prism")
+# get_prism_normals(type = "tmean", resolution = "4km", annual = TRUE)
+# 
+# #choosing which rasters need to be included
+# tmean_rast <- prism_archive_subset(type = "tmean", temp_period = "annual normals", resolution = "4km")
+# tmean_rast2 <- pd_stack(tmean_rast)
+# 
+# #extract the data from prism raster(s) #note: allowing the raster package to handle the CRS transformation
+# tmean_data <- unlist(raster::extract(x = tmean_rast2, 
+#                                      y = npn_pol_sf)) %>% as.data.frame() 
+# 
+# npn_pol_sf3 <- npn_pol_sf %>%  
+#   dplyr::select(site_id) %>% 
+#   mutate(tmean = as.numeric(unlist(tmean_data)))
+# 
+# npn_pol_sf3$geometry <- NULL
+# npn_pol <- left_join(npn_pol, npn_pol_sf3)
 
 ### extract mean annual air temperature for each selected NAB site --------------------------------
 #NAB data were assembled in this script: #C:/Users/danka/Box/texas/NAB/extract_pollen_data_from_NPNdata220308.R
@@ -165,6 +232,38 @@ tmean_data_NAB <- unlist(raster::extract(x = tmean_rast2, #matrix(c(NAB_tx_coord
                                          y = NAB_coords )) %>% as.data.frame() 
 NAB_coords_tmean <- NAB_coords %>% mutate(tmean_NAB = as.numeric(unlist(tmean_data_NAB))) 
 NAB_coords_tmean$geometry <- NULL
+
+
+
+
+### extract spring mean air temperature for each selected NAB site --------------------------------
+#prism_set_dl_dir("~/prism")
+#get_prism_monthlys(type = "tmean", years = 2009:2021, keepZip = TRUE, mon = 1:4)
+
+#function to extract time period for each year of data
+extract_temp_yr_NAB <- function(focal_yr){
+  tmean_rast_yr_mo <- prism_archive_subset(temp_period = "monthly", type = "tmean", years = focal_yr, mon = 1:4)
+  tmean_rast2_yr_mo <- pd_stack(tmean_rast_yr_mo)
+  r_mean <- raster::calc(tmean_rast2_yr_mo, mean)
+  
+  #npn_active_flow_yr_sf_focal_yr <- filter(npn_active_flow_yr_sf, yr == focal_yr)
+  tmean_data <- unlist(raster::extract(x = r_mean, 
+                                       y = NAB_coords)) %>% as.data.frame()  
+  
+  nab_active_flow_yr_sf_focal_yr2 <- NAB_coords %>%  
+    mutate(tmean_jan_apr = as.numeric(unlist(tmean_data)),
+           yr = focal_yr)
+  
+  nab_active_flow_yr_sf_focal_yr2$geometry <- NULL
+  print(focal_yr)
+  return(nab_active_flow_yr_sf_focal_yr2)
+}
+
+#extract_temp_yr(focal_yr = 2010, mo_start = 1, mo_end = 4)
+spring_temp_site_yr_nab <- purrr::map_dfr(.x = 2009:2021, .f = extract_temp_yr_NAB)
+
+
+
 
 
 ### calculate geographic distance from each NPN site to each NAB site -----------------------------
@@ -258,6 +357,12 @@ nab <- nab %>%
   group_by(site, taxon) %>% 
   mutate(polpct_allyrs = scales::rescale(pol, to=c(0,1))) #for each site*taxon (across years)
 #ggplot(nab, aes(x = polpct_allyrs)) + geom_histogram() + theme_bw() + facet_grid(taxon~site) #graphical check
+
+
+#add in spring air temperature
+spring_temp_site_yr_nab <- spring_temp_site_yr_nab %>% rename(years = yr,
+                                                              site = NAB_station)
+nab <- left_join(nab, spring_temp_site_yr_nab)
 
 ## create season definitions based on pollen integral =================================================
 
@@ -528,7 +633,7 @@ nabnpn <- nabnpn %>% mutate(taxon_labs = case_when(taxon == "Cupressaceae" ~ "Cu
                                                    TRUE ~ paste0("<i>", taxon,"</i>")),
                             taxon_labs = as.factor(taxon_labs))
 
-# check italicizing
+ # check italicizing
 # nabnpn %>% sample_n(1) %>% 
 #   ggplot(aes(x = taxon, y = years)) + geom_point() +
 #   scale_x_discrete(labels = levels(nabnpn$taxon_labs)) +
@@ -698,9 +803,9 @@ panel_b <- nabnpn %>%
 
 # panel C: Atlanta Quercus time series 2014
 #add another example here
-fig_site <- "Atlanta"
-fig_taxon <- "Quercus"
-fig_year <- 2017
+fig_site <- "Springfield"
+fig_taxon <- "Acer"
+fig_year <- 2018
 fig_seasons <- nabnpn %>% filter(site == fig_site & taxon == fig_taxon & years == fig_year) %>%  
   arrange(taxon, site, years, dates)
 #fig_season_pol_start <- fig_seasons$dates[min(which (fig_seasons$in_pol95season == "in 95% season"))]
@@ -751,13 +856,261 @@ cowplot::plot_grid(panel_a, panel_b, panel_c, nrow = 3)
 
 
 
-### Fig. 3: mean annual temperature ###########################
+### Fig. 3: Acer version and mean annual temperature ###########################
 
-## Panel A: DOY of season peak for Quercus as a function of mean annual temperature
+## Panel A: DOY of season peak for a taxon as a function of mean annual temperature
+test <- slice_sample(npn, n = 10000)
 
-## Panel B: map of US with color of predicted peak DOY
+nabnpn %>% 
+  filter(taxon == "Acer") %>% 
+  group_by(site, years) %>% 
+  slice(cumu_flow_r)
+
+
+summary(nabnpn$cumu_flow_r)
+
+
+npn_pol %>% filter(genus == "Acer") %>% 
+  filter(phenophase_status == 1) %>% 
+  ggplot(aes(x = tmean, y = day_of_year, color = longitude)) + geom_point(alpha = 0.9) + theme_bw() +
+  facet_wrap(~species) + scale_color_viridis_c()
+  
+npn_active_flow %>% filter(genus == "Acer") %>% filter(species == "rubrum" | species == "saccharinum" | species == "saccharum" | 
+                                                         species == "negundo") %>% 
+  filter(longitude < -60 & longitude > -120) %>% 
+  filter(day_of_year < 175) %>% 
+  filter(flow_prop > 0) %>% 
+  ggplot(aes(x = tmean_jan_apr, y = day_of_year, color = species)) + geom_point(alpha = 0.1) + theme_bw() +
+  #scale_color_viridis_c() + 
+  #facet_wrap(~species) +
+  geom_smooth(method = "lm")
+
+#Acer rubrum regression
+npn_active_flow_Acru <- npn_active_flow %>% filter(genus == "Acer") %>% filter(species == "rubrum") %>% 
+  filter(longitude < -60 & longitude > -130) %>% 
+  filter(day_of_year < 175) %>% 
+  filter(flow_prop > 0)
+acru_fit <- summary(lm( day_of_year ~ tmean_jan_apr, data = npn_active_flow_Acru))
+acru_tmean_predicted_doy <- tmean_rast2 * acru_fit$coefficients[2] + acru_fit$coefficients[1]
+raster::plot(acru_tmean_predicted_doy)
+
+#Acer saccharinum regression
+npn_active_flow_Acsaccharinum <- npn_active_flow %>% filter(genus == "Acer") %>% filter(species == "saccharinum") %>% 
+  filter(longitude < -60 & longitude > -130) %>% 
+  filter(day_of_year < 175) %>% 
+  filter(flow_prop > 0)
+Acsaccharinum_fit <- summary(lm( day_of_year ~ tmean_jan_apr, data = npn_active_flow_Acsaccharinum))
+Acsaccharinum_tmean_predicted_doy <- tmean_rast2 * Acsaccharinum_fit$coefficients[2] + Acsaccharinum_fit$coefficients[1]
+raster::plot(Acsaccharinum_tmean_predicted_doy)
+
+#Acer negundo regression
+npn_active_flow_Acne <- npn_active_flow %>% filter(genus == "Acer") %>% filter(species == "negundo") %>% 
+  filter(longitude < -60 & longitude > -130) %>% 
+  filter(day_of_year < 175) %>% 
+  filter(flow_prop > 0)
+acne_fit <- summary(lm( day_of_year ~ tmean_jan_apr, data = npn_active_flow_Acne))
+acne_tmean_predicted_doy <- tmean_rast2 * acne_fit$coefficients[2] + acne_fit$coefficients[1]
+raster::plot(acne_tmean_predicted_doy)
+
+
+
+### Fig 3: time series of observed pollen and time series of observed maple flowering and predicted maple flowering
+
+# empirical flowering curve for Acru
+#difference from predicted peak day
+npn_flow_empir_Acru <- 
+  npn_active_flow %>% filter(genus == "Acer") %>% filter(species == "rubrum") %>% 
+  filter(longitude < -60 & longitude > -130) %>% 
+  filter(day_of_year < 175) %>% 
+  mutate(doy_peak_pred = tmean_jan_apr * acru_fit$coefficients[2] + acru_fit$coefficients[1],
+         dif_from_peak = day_of_year - round(doy_peak_pred, 0)) %>% 
+  group_by(dif_from_peak) %>% 
+  summarize(flow_prop_mean = mean(flow_prop))
+site_mean_dif_df <- data.frame(dif_from_peak = -30:30)
+npn_flow_empir_Acru <- left_join(npn_flow_empir_Acru, site_mean_dif_df) %>% 
+    ungroup() %>% 
+    mutate(flow_prop_mean_m = zoo::rollapply(flow_prop_mean, 7, #one week moving average
+                                              mean, na.rm = TRUE, partial = TRUE, align='center'))
+
+ggplot(npn_flow_empir_Acru, aes(x = dif_from_peak, y = flow_prop_mean_m)) + geom_line()
+
+
+# empirical flowering curve for Acne
+#difference from predicted peak day
+npn_flow_empir_Acne <- 
+  npn_active_flow %>% filter(genus == "Acer") %>% filter(species == "negundo") %>% 
+  filter(longitude < -60 & longitude > -130) %>% 
+  filter(day_of_year < 175) %>% 
+  mutate(doy_peak_pred = tmean_jan_apr * acne_fit$coefficients[2] + acne_fit$coefficients[1],
+         dif_from_peak = day_of_year - round(doy_peak_pred, 0)) %>% 
+  group_by(dif_from_peak) %>% 
+  summarize(flow_prop_mean = mean(flow_prop))
+site_mean_dif_df <- data.frame(dif_from_peak = -30:30)
+npn_flow_empir_Acne <- left_join(npn_flow_empir_Acne, site_mean_dif_df) %>% 
+  ungroup() %>% 
+  mutate(flow_prop_mean_m = zoo::rollapply(flow_prop_mean, 7, #one week moving average
+                                           mean, na.rm = TRUE, partial = TRUE, align='center'))
+
+ggplot(npn_flow_empir_Acne, aes(x = dif_from_peak, y = flow_prop_mean_m)) + geom_line()
+
+
+# predicted Acru open flower curve at an NAB site
+head(nabnpn)
+focal_peak_acru <- nab %>% ungroup() %>% filter(site == "Springfield" & years == 2018) %>% 
+  select(tmean_jan_apr) %>% distinct() %>% 
+  mutate(acru_peak_day_pred = tmean_jan_apr * acru_fit$coefficients[2] + acru_fit$coefficients[1])
+
+npn_flow_empir_acru_focal_site <- npn_flow_empir_Acru %>% 
+  mutate(doy = dif_from_peak + round(focal_peak$acru_peak_day_pred[1],0))
+
+# predicted Acne open flower curve at an NAB site
+focal_peak_acne <- nab %>% ungroup() %>% filter(site == "Springfield" & years == 2018) %>% 
+  select(tmean_jan_apr) %>% distinct() %>% 
+  mutate(acne_peak_day_pred = tmean_jan_apr * acne_fit$coefficients[2] + acne_fit$coefficients[1])
+
+npn_flow_empir_acne_focal_site <- npn_flow_empir_Acne %>% 
+  mutate(doy = dif_from_peak + round(focal_peak_acne$acne_peak_day_pred[1],0))
+
+
+
+acer_ny <- npn_raw %>% 
+  mutate(years = year(observation_date)) %>% 
+  filter(years == 2016) %>% 
+  filter(genus == "Acer") %>% 
+  # filter(species == "rubrum" | #species == "saccharum" | #species == "platanoides" | species == "pensylvanicum" |
+  #          species == "saccharinum" | 
+  #          species == "negundo"
+  #        ) %>% 
+  filter(NAB_station == "Springfield") %>% 
+  filter(distNAB < 321869 * 1) %>% #321869 = 200 miles
+  filter(day_of_year > 50) %>% 
+  filter(day_of_year < 150) %>% 
+  arrange(species,  observation_date) %>% 
+  group_by(species, day_of_year) %>% 
+  #group_by() %>% 
+  # mutate(mean_flow = mean(phenophase_status), 
+  #        mean_flow_m = round(na_interpolation(mean_flow),1),
+  #        mean_flow_m_ma = round(rollmean(mean_flow_m, 7, na.pad=TRUE),2)) 
+  dplyr::summarize(mean_flow = mean(phenophase_status),
+                   mean_prop_flow = mean(flow_prop),
+                   n_obs = sum(!is.na(observation_id)))  %>% #do not include NA values in n() calculation
+  filter(n_obs > 3) %>% 
+  ungroup() 
+
+acer_ny %>% 
+  filter(species != "platanoides") %>% 
+  ggplot( aes(x = as.Date(day_of_year, origin = as.Date("2018-01-01")), y = mean_flow, color = species)) + #geom_point() + 
+  ggthemes::theme_few() + ylab("flowering (% of observations)") + xlab("") + 
+  scale_x_date(limits = c(ymd("2018-03-01"), ymd("2018-05-24"))) + 
+  geom_line(aes(x = as.Date(day_of_year, origin = as.Date("2018-01-01")), 
+                y=rollmean(mean_flow, 14, na.pad=TRUE))) +#+ facet_wrap(~species)
+  scale_color_discrete(labels = c(#expression(italic("negundo")),
+    expression(italic("Acer rubrum")),
+    expression(italic("Acer saccharum")))) +
+  ggtitle("Maples near Springfield") +
+  geom_line(data = npn_flow_empir_acru_focal_site, aes(x = as.Date(doy, origin = as.Date("2018-01-01")),
+                                                       y = flow_prop_mean_m
+                                                       ), color = "black")+
+  geom_line(data = npn_flow_empir_acne_focal_site, aes(x = as.Date(doy, origin = as.Date("2018-01-01")),
+                                                       y = flow_prop_mean_m), color = "green")
+
+
+
+ggplot(npn_flow_empir_acru_focal_site, aes(x = doy, y = flow_prop_mean_m)) + geom_point()
+
+
+
+### Fig 3: Quercus peak doy NPN vs Quercus peak doy NAB #####################################################
+
+
+xlab <- "spring temperature (°C)"
+npn_active_flow %>% filter(genus == "Quercus") %>% #filter(species == "rubra" | species == "velutina" | species == "alba" | species == "palustris") %>% 
+  filter(longitude < -60 & longitude > -90) %>% 
+  filter(day_of_year < 181) %>% 
+  filter(flow_prop > 0) %>% 
+  ggplot(aes(x = tmean_jan_apr, y = as.Date(day_of_year, origin = as.Date("2018-01-01")))) + geom_point(alpha = 0.1) + ggthemes::theme_few() +
+  facet_wrap(~genus) + 
+  #scale_color_viridis_c() + 
+  #facet_wrap(~species) +
+  geom_smooth(method = "lm") + 
+  xlab(xlab) + ylab("flowering observed (date)") + scale_y_date(date_breaks = "1 month", date_labels =  "%b") +
+  #stat_regline_equation(label.y = as.Date(180, origin = as.Date("2018-01-01")), aes(label = ..eq.label..), label.x = 15) +
+  stat_cor(aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~")), label.y = as.Date(185, origin = as.Date("2018-01-01")), label.x = 15)
+
+#Quercus regression
+npn_active_flow_Qu <- npn_active_flow %>% filter(genus == "Quercus") %>% #filter(species == "rubrum") %>% 
+  filter(longitude < -60 & longitude > -90) %>% 
+  filter(day_of_year < 181) %>% 
+  filter(flow_prop > 0) 
+qu_fit <- summary(lm( day_of_year ~ tmean_jan_apr, data = npn_active_flow_Qu))
+qu_tmean_predicted_doy <- tmean_rast2 * qu_fit$coefficients[2] + qu_fit$coefficients[1]
+raster::plot(qu_tmean_predicted_doy)
+
+
+# predicted Quru peak open flow day at each NAB site
+head(nabnpn)
+peak_qu_npn_pred_nab_sites <- nab %>% ungroup() %>% filter(taxon == "Quercus") %>% 
+  select(site, taxon, years, tmean_jan_apr) %>% distinct() %>% 
+  mutate(quru_peak_day_pred = tmean_jan_apr * qu_fit$coefficients[2] + qu_fit$coefficients[1])
+
+# empirical Quru peak at each NAB site
+NAB_quru_peak_day <- nabnpn %>% filter(taxon == "Quercus") %>% #filter(years > 2009) %>% 
+  #filter(sum_pol_season > 100) %>% 
+  arrange(site, dates) %>% 
+  group_by(site, years)%>% 
+  mutate(pol_m = round(na_interpolation(pol),1),
+         pol_m_ma = round(rollmean(pol_m, 7, na.pad=TRUE),2),
+         #n_obs_real = 
+         #mean_nobs_ma = round(rollmean(n_obs, 7, na.pad=TRUE),2)
+         )%>% 
+    
+         #filter(mean_nobs_ma > 3) %>% 
+         filter(pol_m_ma > 50) %>% 
+         slice_max(pol_m_ma)
+NAB_NPN_quru_peak_day <- left_join(NAB_quru_peak_day, peak_qu_npn_pred_nab_sites)
+
+ggplot(NAB_NPN_quru_peak_day, aes(x = as.Date(quru_peak_day_pred, origin = as.Date("2018-01-01")), 
+                                  y = as.Date(doy, origin = as.Date("2018-01-01")))) + geom_point(aes(color = as.factor(site))) + ggthemes::theme_few() + geom_smooth(method = "lm") +
+  geom_abline(slope = 1, intercept = 0, lty = 2) +
+  xlab("predicted peak flowering (date)")+ ylab("observed peak pollen (date)") +
+  scale_color_discrete(guide="none") +
+  # stat_regline_equation(label.y = as.Date(155, origin = as.Date("2018-01-01")), aes(label = ..eq.label..), 
+  #                       label.x = as.Date(70, origin = as.Date("2018-01-01"))) +
+  stat_cor(aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~")), 
+           label.y = as.Date(158, origin = as.Date("2018-01-01")), 
+           label.x = as.Date(70, origin = as.Date("2018-01-01")))
+
+
+
+
+###########################################################
+
+# ## Panel B: map of US with color of predicted peak DOY
+# test <- npn_active_flow %>% filter(genus == "Quercus") %>% 
+#   filter(flow_prop > 0) %>% 
+#   filter(species == "rubra" | species == "palustris") 
+# lm(day_of_year ~ tmean, data = test)
+# 
+# tmean_rast2
+# plot(tmean_rast2)
+# raster::plot(tmean_rast2)
+# 
+# tmean_predicted_doy <- tmean_rast2 * -2.93 + 158.95
+# raster::plot(tmean_predicted_doy)
+# 
+# npn_active_flow %>% filter(genus == "Quercus") %>% 
+#   filter(species == "rubra" | species == "palustris") %>% 
+#   filter(day_of_year < 150 & day_of_year > 50) %>% 
+#   filter(flow_prop > 0) %>% 
+#   #filter(phenophase_status == 1) %>%
+#   ggplot(aes(x = longitude, y = latitude, color = day_of_year)) + geom_point(size = 3, alpha =0.5) + scale_color_viridis_c() + theme_bw()
+
+
 
 ## Panel C: predicted peak DOY based on NPN-MAT compared to observed NAB peak
+#extract predicted DOY for red oak
+
+head(nab)
 
 
 ### Fig. 3: overall comparisons ###############################
