@@ -29,6 +29,8 @@ here::i_am("NPN_NAB_combined_script.R") #using the 'here' package for consistent
 
 ### Prepare NPN data #################################################################################
 ### select top anemophilous taxa from NPN -----------------------------------------
+npn_spp <- npn_species()
+npn_spp <- npn_spp %>% filter(kingdom == "Plantae") %>%  arrange(order_name, family_name, genus)
 
 #top woody anemophilous angiosperms
 acer_species_list <- c(777,1843,59,778,1,2,1591,60,779,780,3,781,61,1199)
@@ -121,7 +123,23 @@ npn_active_flow <- npn_flow %>%
       intensity_value == "95% or more" ~ 0.97,
       intensity_value == "-9999" ~ -9999)) 
 hist(npn_active_flow$flow_prop)
+
+
+#number of observations over time
+#npn_active_flow %>% group_by(yr) %>% summarize(n = n())
+
+#number of observations over time by genus
 #test <- npn_active_flow %>% group_by(genus, yr) %>% summarize(n = n())
+
+#number of observations by genus
+npn_active_flow %>% #filter(flow_prop != 0) %>% 
+  group_by(genus) %>% summarize(n = n())
+
+#number of observations by genus for open flowers/pollen cones
+npn_active_flow %>% filter(flow_prop != 0) %>% 
+  group_by(genus) %>% summarize(n = n())
+
+
 
 #observations for pollen release
 npn_pol <- filter(npn_direct_flag, phenophase_id == 502 | phenophase_id == 503) %>% 
@@ -265,9 +283,22 @@ npn_active_flow_Qu <- npn_active_flow %>% filter(genus == "Quercus") %>% #filter
   filter(longitude < -60 & longitude > -90) %>% 
   filter(day_of_year < 181) %>% 
   filter(flow_prop != 0)  #change to >0 to exclude the observations where flowering intensity wasn't recorded (i.e., 2009 - 2011)
-qu_fit <- summary(lm( day_of_year ~ tmean_jan_apr, data = npn_active_flow_Qu))
+qu_fit_lm <- lm( day_of_year ~ tmean_jan_apr, data = npn_active_flow_Qu)
+qu_fit <- summary(qu_fit_lm)
+
+mean(abs(qu_fit_lm$residuals)) #mean absolute error
+
 # qu_tmean_predicted_doy <- tmean_rast2 * qu_fit$coefficients[2] + qu_fit$coefficients[1]
 # raster::plot(qu_tmean_predicted_doy)
+
+#oak observation sample size
+npn_active_flow %>% filter(genus == "Quercus") %>% #filter(species == "rubra" | species == "velutina" | species == "alba" | species == "palustris") %>% 
+  filter(longitude < -60 & longitude > -90) %>%  filter(day_of_year < 181) %>% filter(flow_prop != 0) %>% summarize(n = n())
+
+npn_active_flow %>% filter(genus == "Quercus") %>%
+  filter(longitude < -60 & longitude > -90) %>%  filter(day_of_year < 181) %>% filter(flow_prop != 0) %>% group_by(species) %>% summarize(n = n())
+
+
 
 ### Fig 3: Quercus peak doy NPN vs Quercus peak doy NAB #####################################################
 # predicted Quru peak open flow day at each NAB site
@@ -295,7 +326,9 @@ NAB_quru_peak_day <- left_join(nab, NAB_coords_not_sf) %>%
 NAB_NPN_quru_peak_day <- left_join(NAB_quru_peak_day, peak_qu_npn_pred_nab_sites)
 
 ggplot(NAB_NPN_quru_peak_day, aes(x = as.Date(quru_peak_day_pred, origin = as.Date("2018-01-01")), 
-                                  y = as.Date(ydays, origin = as.Date("2018-01-01")))) + geom_point(aes(color = as.factor(site))) + ggthemes::theme_few() + 
+                                  y = as.Date(ydays, origin = as.Date("2018-01-01")) #, group = site
+                                  
+                                  )) + geom_point(aes(color = as.factor(site))) + ggthemes::theme_few() + facet_wrap(~site) +
   geom_smooth(method = "lm", se = FALSE) +
   geom_abline(slope = 1, intercept = 0, lty = 2) +
   xlab("predicted peak flowering (date)")+ ylab("observed peak pollen (date)") +
@@ -306,3 +339,19 @@ ggplot(NAB_NPN_quru_peak_day, aes(x = as.Date(quru_peak_day_pred, origin = as.Da
            label.y = as.Date(145, origin = as.Date("2018-01-01")), 
            label.x = as.Date(83, origin = as.Date("2018-01-01")))
 
+
+
+fit_lm <- lm( ydays ~ quru_peak_day_pred, data = NAB_NPN_quru_peak_day)
+fit <- summary(fit_lm)
+
+mean(abs(fit_lm$residuals)) #mean absolute error
+
+
+#number of station-years
+dplyr::select(NAB_NPN_quru_peak_day, site, years) %>% distinct()
+
+#number of stations in case study
+length(unique(NAB_NPN_quru_peak_day$site))
+
+#number of stations in NAB dataset
+length(unique(nab$site))
