@@ -140,7 +140,8 @@ npn_active_flow_sf <- npn_active_flow %>%
   st_as_sf(coords = c( "longitude", "latitude"), crs = 4326) 
 
 
-prism_set_dl_dir("~/prism")
+#prism_set_dl_dir("~/prism") 
+prism_set_dl_dir("C:/Users/dsk273/Documents/prism")
 get_prism_normals(type = "tmean", resolution = "4km", annual = TRUE)
 
 #choosing which rasters need to be included
@@ -164,14 +165,14 @@ npn_active_flow_yr_sf <- npn_active_flow %>%
   distinct() %>% 
   st_as_sf(coords = c( "longitude", "latitude"), crs = 4326) 
 
-prism_set_dl_dir("~/prism")
+#prism_set_dl_dir("~/prism")
 #get_prism_monthlys(type = "tmean", years = 2009:2021, keepZip = TRUE, mon = 1:4)
 
 #function to extract time period for each year of data
-extract_temp_yr <- function(focal_yr){
+extract_temp_yr <- function(focal_yr){ #focal_yr <- 2009
   tmean_rast_yr_mo <- prism_archive_subset(temp_period = "monthly", type = "tmean", years = focal_yr, mon = 1:4)
   tmean_rast2_yr_mo <- pd_stack(tmean_rast_yr_mo)
-  r_mean <- raster::calc(tmean_rast2_yr_mo, mean)
+  r_mean <- raster::calc(tmean_rast2_yr_mo, mean) #raster::plot(r_mean)
   
   npn_active_flow_yr_sf_focal_yr <- filter(npn_active_flow_yr_sf, yr == focal_yr)
   tmean_data <- unlist(raster::extract(x = r_mean, 
@@ -187,7 +188,7 @@ extract_temp_yr <- function(focal_yr){
 }
 
 #extract_temp_yr(focal_yr = 2010, mo_start = 1, mo_end = 4)
-spring_temp_site_yr <- purrr::map_dfr(.x = 2009:2021, .f = extract_temp_yr)
+spring_temp_site_yr <- purrr::map_dfr(.x = 2011:2021, .f = extract_temp_yr)
 npn_active_flow <- left_join(npn_active_flow, spring_temp_site_yr)
 
 
