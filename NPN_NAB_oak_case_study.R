@@ -328,7 +328,7 @@ NAB_NPN_quru_peak_day <- left_join(NAB_quru_peak_day, peak_qu_npn_pred_nab_sites
 ggplot(NAB_NPN_quru_peak_day, aes(x = as.Date(quru_peak_day_pred, origin = as.Date("2018-01-01")), 
                                   y = as.Date(ydays, origin = as.Date("2018-01-01")) #, group = site
                                   
-                                  )) + geom_point(aes(color = as.factor(site))) + ggthemes::theme_few() + facet_wrap(~site) +
+                                  )) + geom_point(aes(color = as.factor(site))) + ggthemes::theme_few() + #facet_wrap(~site) +
   geom_smooth(method = "lm", se = FALSE) +
   geom_abline(slope = 1, intercept = 0, lty = 2) +
   xlab("predicted peak flowering (date)")+ ylab("observed peak pollen (date)") +
