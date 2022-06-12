@@ -42,6 +42,14 @@ ulmus_species_list <- c(1192,1048,1049,1215,1216)
 
 #herbaceous angiosperms
 ambrosia_species_list <- c(145,788,146)
+#plantago
+#chenopodes or amaranth
+#Rumex
+#Urtica
+#
+
+#grasses
+
 
 #pollen cones
 pinus_species_list <- c(1629,1686,965,762,50,295,220,1480,219,51,966,967,52,25,968,1687,53,54) #Pinaceae
