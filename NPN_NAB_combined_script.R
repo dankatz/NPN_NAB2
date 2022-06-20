@@ -28,7 +28,9 @@ library(ggpubr)
 here::i_am("NPN_NAB_combined_script.R") #using the 'here' package for consistent file structure system
 
 ### Prepare NPN data #################################################################################
-### select a few top anemophilous taxa from NPN -----------------------------------------
+### select top anemophilous taxa from NPN -----------------------------------------
+npn_plants <- npn_species(kingdom = "Plantae")
+
 
 #top woody anemophilous angiosperms
 acer_species_list <- c(777,1843,59,778,1,2,1591,60,779,780,3,781,61,1199)
@@ -39,16 +41,35 @@ populus_species_list <- c(1361,320,976,977,1188,27,1481)
 quercus_species_list <- c(705,100,1365,757,1870,987,1690,1484,988,316,297,1485,1190,765,1486,
                           301,704,101,1691,1212,989,1366,102,1756,1213,1755,1487,1159,305)
 ulmus_species_list <- c(1192,1048,1049,1215,1216)
+misc_species_list <- c(935, #Myrica
+                      823, #Carpinus
+                      1176, 1177, 824, 67, 68, #Carya
+                      829, 1342, 1924, 1605, #Celtis
+                      71, 72, #Corylus
+                      1353, 80, #Juglans
+                      81, #Liquidamber
+                      2007, #Morus
+                      1360, #Olea
+                      970, 1211, #Platanus
+                      1007, 717, 1875, 1494, 2066, 293, 322, 1493, 1006, 1163, 77, 1371, #salix
+                      1009, 1008, 1372, 1010, 1876, #Salix
+                      93, 1775, 1776, 1777 #Tilia
+)
 
-#herbaceous angiosperms
-ambrosia_species_list <- c(145,788,146)
-#plantago
-#chenopodes or amaranth
-#Rumex
-#Urtica
-
+#herbaceous angiosperms 
+#filter(npn_plants, genus == "Tilia")
+herbaceous_species_list <-c(
+  441, 1885, 435, 1889, 1005, 1618, #Amaranthaceae 
+  145,788,146, #Ambrosia
+  1436, 1902, 105, 796, 797, 1900, 798, 1901, #Artemisia
+ #Chenopodiaceae
+ 969, #Plantago
+ #Rumex
+ 1986, 1050)#Urticaceae
 
 #grasses
+poaceae_species_list <- filter(npn_plants, family_name == "Poaceae") %>%  
+                        pull(species_id) 
 
 
 #pollen cones
@@ -58,10 +79,12 @@ cupressaceae_species_list <- c(43,1743,1354,289,902,291,290,44, #junipers
 
 list_all_focal_taxa <- c(acer_species_list, alnus_species_list, betula_species_list, fraxinus_species_list, 
                          populus_species_list, quercus_species_list, ulmus_species_list,
-                         ambrosia_species_list, pinus_species_list, cupressaceae_species_list)
+                         pinus_species_list, cupressaceae_species_list, 
+                         misc_species_list,
+                         herbaceous_species_list, poaceae_species_list)
 
 ### download and process data -------------------------------------------------------------
-npn_direct <- read_csv( here("data", "NPN_220308.csv")) #try reading in data if it's already downloaded
+npn_direct <- read_csv( here("data", "NPN_220620.csv")) #try reading in data if it's already downloaded
 if(exists("npn_direct") == FALSE){ #does the npn_direct object exist? If not, download it:
 npn_direct <- npn_download_status_data(
   request_source = 'Daniel Katz, Cornell and/or Theresa Crimmins',
@@ -70,7 +93,7 @@ npn_direct <- npn_download_status_data(
   phenophase_ids = c(501, 502,495, 503), #angiosperms: 501 == "Open flowers", 502 == "Pollen release (flowers)" #conifers: 495 ==  503 ==
   additional_fields = c("Observed_Status_Conflict_Flag", "partner_group")
 )
-write_csv(npn_direct, here("data", "NPN_220308.csv"))
+write_csv(npn_direct, here("data", "NPN_220620.csv"))
 }
 
 
