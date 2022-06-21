@@ -137,6 +137,10 @@ npn_direct_flag <- merge(npn_direct, lowconflict_sites, by="site_id")
 #npn_direct <- read_csv("data/npn_direct_220128.csv")
 npn_flow <- filter(npn_direct_flag, phenophase_id == 501 | phenophase_id == 495)
 
+#how many obs per year
+npn_flow %>% mutate(year_obs = year(observation_date)) %>% 
+  group_by(year_obs) %>% 
+  summarize(n = n ())
 
 # flowering intensity value (which is entered about 82% of the time)
 npn_active_flow <- npn_flow %>%
@@ -162,6 +166,19 @@ npn_pol %>%
   group_by(phenophase_status) %>% 
   dplyr::summarize(n_obs = n())
 
+#SI 1: total observations per taxa
+SI_1_phenophase_observed <- npn_flow %>% group_by(genus, species) %>% 
+  summarize(n_obs_flow_looked_for = n())
+
+SI_1_active_flow_observed <- npn_active_flow %>% 
+  filter(intensity_value > 0) %>% 
+  group_by(genus, species) %>% 
+  summarize(n_obs_flow_active = n())
+
+SI_1 <- left_join(SI_1_phenophase_observed, SI_1_active_flow_observed) %>% 
+        mutate(n_obs_flow_active = replace_na(n_obs_flow_active, 0)) %>% 
+        mutate(taxon = paste(genus, species, sep = " "))
+write_csv(SI_1, "SI_1_220622.csv")
 
 ### extract mean annual air temperature for each NPN observation site: flowers -----------------------------
 ### Mean annual temperature 
