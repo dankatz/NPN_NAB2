@@ -1,10 +1,9 @@
-### NPN-NAB comparison manuscript  ####################################################################
-# Current project participants:
-# Liz Vogt, Theresa Crimmins, Arie Managan, Claudia Brown, Dan Dalan, and Dan Katz
-# This script includes data assembly, analysis, and visualization and is the compilation of several 
-# previous versions, also stored in this repo
-#
-# Note: DK is  working on assembling and cleaning up this script (April 27; check back in a day or two for a prettier version)
+### NPN-NAB direct comparison manuscript  ####################################################################
+# This version is going to be a stand-alone manuscript that Liz will lead. 
+# It will focus on raw comparisons of NPN and NAB data, in contrast to the short communication on the modeling potential of NPN data
+# authors: Liz Vogt, Dan Katz, Arie Managan, Claudia Brown, Dan Dalan, Kai Zhu, Yiluan Song, and Theresa Crimmins
+# This script includes data assembly, analysis, and visualization 
+
 
 ### set up working environment #######################################################################
 library(dplyr)
@@ -30,7 +29,9 @@ library(ggpubr)
 here::i_am("NPN_NAB_combined_script.R") #using the 'here' package for consistent file structure system
 
 ### Prepare NPN data #################################################################################
-### select a few top anemophilous taxa from NPN -----------------------------------------
+### select top anemophilous taxa from NPN -----------------------------------------
+npn_plants <- npn_species(kingdom = "Plantae")
+
 
 #top woody anemophilous angiosperms
 acer_species_list <- c(777,1843,59,778,1,2,1591,60,779,780,3,781,61,1199)
@@ -41,9 +42,36 @@ populus_species_list <- c(1361,320,976,977,1188,27,1481)
 quercus_species_list <- c(705,100,1365,757,1870,987,1690,1484,988,316,297,1485,1190,765,1486,
                           301,704,101,1691,1212,989,1366,102,1756,1213,1755,1487,1159,305)
 ulmus_species_list <- c(1192,1048,1049,1215,1216)
+misc_species_list <- c(935, #Myrica
+                       823, #Carpinus
+                       1176, 1177, 824, 67, 68, #Carya
+                       829, 1342, 1924, 1605, #Celtis
+                       71, 72, #Corylus
+                       1353, 80, #Juglans
+                       81, #Liquidamber
+                       2007, #Morus
+                       1360, #Olea
+                       970, 1211, #Platanus
+                       1007, 717, 1875, 1494, 2066, 293, 322, 1493, 1006, 1163, 77, 1371, #salix
+                       1009, 1008, 1372, 1010, 1876, #Salix
+                       93, 1775, 1776, 1777 #Tilia
+)
 
-#herbaceous angiosperms
-ambrosia_species_list <- c(145,788,146)
+#herbaceous angiosperms 
+#filter(npn_plants, genus == "Tilia")
+herbaceous_species_list <-c(
+  441, 1885, 435, 1889, 1005, 1618, #Amaranthaceae 
+  145,788,146, #Ambrosia
+  1436, 1902, 105, 796, 797, 1900, 798, 1901, #Artemisia
+  #Chenopodiaceae
+  969, #Plantago
+  #Rumex
+  1986, 1050)#Urticaceae
+
+#grasses
+poaceae_species_list <- filter(npn_plants, family_name == "Poaceae") %>%  
+  pull(species_id) 
+
 
 #pollen cones
 pinus_species_list <- c(1629,1686,965,762,50,295,220,1480,219,51,966,967,52,25,968,1687,53,54) #Pinaceae
@@ -52,19 +80,21 @@ cupressaceae_species_list <- c(43,1743,1354,289,902,291,290,44, #junipers
 
 list_all_focal_taxa <- c(acer_species_list, alnus_species_list, betula_species_list, fraxinus_species_list, 
                          populus_species_list, quercus_species_list, ulmus_species_list,
-                         ambrosia_species_list, pinus_species_list, cupressaceae_species_list)
+                         pinus_species_list, cupressaceae_species_list, 
+                         misc_species_list,
+                         herbaceous_species_list, poaceae_species_list)
 
-###download and process data -------------------------------------------------------------
-npn_direct <- read_csv( here("data", "NPN_220308.csv")) #try reading in data if it's already downloaded
+### download and process data -------------------------------------------------------------
+npn_direct <- read_csv( here("data", "NPN_220620.csv")) #try reading in data if it's already downloaded
 if(exists("npn_direct") == FALSE){ #does the npn_direct object exist? If not, download it:
-npn_direct <- npn_download_status_data(
-  request_source = 'Daniel Katz, Cornell and/or Theresa Crimmins',
-  species_ids = list_all_focal_taxa,
-  years = c(as.character(2009:2021)), #years to include
-  phenophase_ids = c(501, 502,495, 503), #angiosperms: 501 == "Open flowers", 502 == "Pollen release (flowers)" #conifers: 495 ==  503 ==
-  additional_fields = c("Observed_Status_Conflict_Flag", "partner_group")
-)
-write_csv(npn_direct, here("data", "NPN_220308.csv"))
+  npn_direct <- npn_download_status_data(
+    request_source = 'Daniel Katz, Cornell and/or Theresa Crimmins',
+    species_ids = list_all_focal_taxa,
+    years = c(as.character(2009:2021)), #years to include
+    phenophase_ids = c(501, 502,495, 503), #angiosperms: 501 == "Open flowers", 502 == "Pollen release (flowers)" #conifers: 495 ==  503 ==
+    additional_fields = c("Observed_Status_Conflict_Flag", "partner_group")
+  )
+  write_csv(npn_direct, here("data", "NPN_220620.csv"))
 }
 
 
@@ -91,7 +121,7 @@ hi_conflict[is.na(hi_conflict)] <- 0
 # calculate percentage of conflict records
 hi_conflict$percentage <- hi_conflict$nflag/hi_conflict$n*100
 # un-comment the next two lines for a histogram of conflicts per site... 
-#hist(hi_conflict$percentage, xlab="Percentage conflict records", 
+# hist(hi_conflict$percentage, xlab="Percentage conflict records", 
 #     ylab="Number of sites", main="Frequency of conflicts per site")
 
 # identify sites for which conflict records make up more than 5 percent of total
@@ -104,28 +134,50 @@ names(lowconflict_sites) <- "site_id"
 # (with single conflict flags removed) to see the difference... 
 npn_direct_flag <- merge(npn_direct, lowconflict_sites, by="site_id")
 
-#write_csv(npn_direct, "data/npn_direct_220128.csv") #keeping a local copy to avoid having to re-download data
-#npn_direct <- read_csv("data/npn_direct_220128.csv")
 npn_flow <- filter(npn_direct_flag, phenophase_id == 501 | phenophase_id == 495)
+
 
 # flowering intensity value (which is entered about 82% of the time)
 npn_active_flow <- npn_flow %>%
   filter(phenophase_status != -1) %>% #removing observations where the observer was unsure whether the phenophase was occurring
-  mutate(flow_prop = case_when(
-    phenophase_status == 0  ~ 0,
-    intensity_value == "Less than 5%" ~ 0.025,
-    intensity_value ==  "5-24%"~ (0.05+0.24)/2,
-    intensity_value == "25-49%" ~ (0.25+0.49)/2,
-    intensity_value == "50-74%" ~ (0.5+0.74)/2,
-    intensity_value == "75-94%" ~ (0.75+0.94)/2,
-    intensity_value == "95% or more" ~ 0.97,
-    phenophase_status == 1  ~ 0.5)) #assuming that when intensity value isn't given, a tree is halfway through flowering
+  #filter(intensity_value != -9999) %>% #removing observations where the intensity wasn't recorded
+  mutate(
+    yr = year(observation_date), 
+    flow_prop = case_when(
+      phenophase_status == 0  ~ 0,
+      intensity_value == "Less than 5%" ~ 0.025,
+      intensity_value ==  "5-24%"~ (0.05+0.24)/2,
+      intensity_value == "25-49%" ~ (0.25+0.49)/2,
+      intensity_value == "50-74%" ~ (0.5+0.74)/2,
+      intensity_value == "75-94%" ~ (0.75+0.94)/2,
+      intensity_value == "95% or more" ~ 0.97,
+      intensity_value == "-9999" ~ -9999)) 
 hist(npn_active_flow$flow_prop)
 
-#how many observations are for pollen release?                    
-filter(npn_direct, phenophase_id == 502 | phenophase_id == 503) %>% 
+
+#number of observations over time
+#npn_active_flow %>% group_by(yr) %>% summarize(n = n())
+
+#number of observations over time by genus
+#test <- npn_active_flow %>% group_by(genus, yr) %>% summarize(n = n())
+
+#number of observations by genus
+npn_active_flow %>% #filter(flow_prop != 0) %>% 
+  group_by(genus) %>% summarize(n = n()) %>% print(n = Inf)
+
+#number of observations by genus for open flowers/pollen cones
+npn_active_flow %>% filter(flow_prop != 0) %>% 
+  group_by(genus) %>% summarize(n = n()) %>% print(n = Inf)
+
+
+
+#observations for pollen release
+npn_pol <- filter(npn_direct_flag, phenophase_id == 502 | phenophase_id == 503) %>% 
+  filter(phenophase_status != -1)
+
+npn_pol %>% 
   group_by(phenophase_status) %>% 
-  dplyr::summarize(n_obs = n())
+  dplyr::summarize(n_obs = n()) %>% print(n = Inf)
 
 
 ### extract mean annual air temperature for each NPN observation site -----------------------------
@@ -185,13 +237,13 @@ dist_calc_fun <- function(NAB_station, NAB_station_long, NAB_station_lat){
   
   npn_active_flow_i <- npn_active_flow %>% mutate(distNAB = as.numeric(npn_active_flow_dist_i),
                                                   NAB_station = NAB_station)
-  npn_active_flow_i_200m <- filter(npn_active_flow_i, distNAB <= 400000) #filter observations within x meters to keep size down
+  npn_active_flow_i_200m <- filter(npn_active_flow_i, distNAB <= 300000) #filter observations within x meters to keep size down
   return(npn_active_flow_i_200m)
 }
 
-#Sys.time()
+Sys.time()
 NPN_near_NAB <- pmap_dfr(NAB_coords_notsf, dist_calc_fun) #takes ~ 30 min on laptop
-#Sys.time()
+Sys.time()
 
 #ggplot(NPN_near_NAB, aes(x = distNAB)) + geom_histogram() + facet_wrap(~NAB_station)
 #ggplot(NPN_near_NAB, aes(x = longitude, y = latitude)) + geom_point() 
