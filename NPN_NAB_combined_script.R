@@ -242,7 +242,7 @@ dist_calc_fun <- function(NAB_station, NAB_station_long, NAB_station_lat){
 }
 
 Sys.time()
-NPN_near_NAB <- pmap_dfr(NAB_coords_notsf, dist_calc_fun) #takes ~ 30 min on laptop
+NPN_near_NAB <- pmap_dfr(NAB_coords_notsf, dist_calc_fun) #now takes ~ 35 min on desktop; could add an initial filter to speed this up 
 Sys.time()
 
 #ggplot(NPN_near_NAB, aes(x = distNAB)) + geom_histogram() + facet_wrap(~NAB_station)
@@ -256,7 +256,7 @@ NPN_near_NAB2 <- left_join(NPN_near_NAB, NAB_coords_tmean) %>%
 
 
 ### export data to file (data exploration is next script) --------------------------------------------
-write_csv(NPN_near_NAB2, here("data", "NPN_near_NAB_220427.csv"))
+write_csv(NPN_near_NAB2, here("data", "NPN_near_NAB_220707.csv"))
 
 # readr::write_csv(NPN_near_NAB2, "data/200mibuffer-inclusive_220321.csv")
 # write.csv(NPN_near_NAB2, "data/200mibuffer-inclusive_220321b.csv")
@@ -300,7 +300,7 @@ nab <- left_join(date_station_grid, nab_raw) %>%
   mutate(years = year(dates),
          ydays = yday(dates))
 
-# rescale pollen counts to 0-1 
+# rescale pollen counts to 0-1 #takes 30 min at current configuration
 nab <- nab %>%
   group_by(site, taxon, years) %>%
   mutate(polpct = scales::rescale(pol, to=c(0,1))) %>%  #for each site*taxon*year
@@ -308,7 +308,31 @@ nab <- nab %>%
   mutate(polpct_allyrs = scales::rescale(pol, to=c(0,1))) #for each site*taxon (across years)
 #ggplot(nab, aes(x = polpct_allyrs)) + geom_histogram() + theme_bw() + facet_grid(taxon~site) #graphical check
 
-## create season definitions based on pollen integral =================================================
+#write_csv(nab, here("data", "NPN_near_NAB_scaled_220707.csv"))
+
+## create NAB season definitions based on pollen integral =================================================
+
+#Season definition that works for multiple peaks (e.g., Cupressaceae). A previous version only worked for single peaks
+nab_seasons_ydays <- 
+  nab %>% 
+  #filter(site == "Atlanta") %>% 
+  #filter(taxon == "Cupressaceae" | taxon == "Ulmus") %>% 
+  arrange(site, taxon, years, ydays) %>% 
+  mutate( pol_m_ma = round(rollapply(pol, width=14, FUN=function(x) mean(x, na.rm=TRUE), by=1, partial=TRUE, fill=NA),2) ) %>% 
+  group_by(site, taxon, ydays) %>% 
+  summarize(pol_mean_yday = mean(pol_m_ma, na.rm = TRUE)) %>% 
+  arrange(site, taxon, -pol_mean_yday) %>% 
+  mutate(cumu_pol_mean_yday = cumsum(replace_na(pol_mean_yday, 0)),  #cumulative sum of pollen #putting NAs as 0s for calculating seasonal sums 
+         cumu_pol = cumu_pol_mean_yday,          #relative sum of pollen
+         cumu_pol_max = max(cumu_pol),
+         cumu_pol_r = cumu_pol/cumu_pol_max,
+         in_95season = case_when(cumu_pol_r < 0.95 ~ "95% season", #is the observation in the 95% pollen season?
+                                 cumu_pol_r >= 0.95 ~ "not in in 95% season"),
+         in_99polseason = case_when(cumu_pol_r < 0.99 ~ "in 99% season", #is the observation in the 95% pollen season?
+                                    cumu_pol_r >= 0.99 ~ "not in 99% season")) %>%
+  dplyr::select(site, taxon, ydays, in_95season, in_99polseason)
+
+#ggplot(nab_seasons, aes(x = ydays, y = pol_mean_yday, color = in_95season)) + geom_point() + theme_bw() + facet_wrap(~taxon)
 
 #total pollen measured per site/taxon (across all years)
 nab_focal_all_years <- nab %>% 
@@ -320,100 +344,41 @@ nab_focal_season_sum <- nab %>%
   group_by(site, taxon, years) %>% 
   summarize(sum_pol_season = sum(pol, na.rm = TRUE))
 
-#position in pollen season
-#nab_seasons <- nab %>% left_join(., nab_focal_season_max) %>% 
-#  group_by(site, taxon, years) %>% 
-#  mutate(cumu_pol = cumsum(replace_na(pol, 0)),  #cumulative sum of pollen #putting NAs as 0s for calculating seasonal sums 
-#         cumu_pol_r = cumu_pol/sum_pol,          #relative sum of pollen
-#         in_95season = case_when(cumu_pol_r < 0.025 ~ "not in 95% season", #is the observation in the 95% pollen season?
-#                                 cumu_pol_r >= 0.025 & cumu_pol_r <= 0.975~ "in 95% season",
-#                                 cumu_pol_r > 0.975 ~ "not in 95% season"))  
-
-# #position in pollen season - using scaled pollen values
-# nab_seasons <- nab %>% left_join(., nab_focal_season_max) %>% 
-#   group_by(site, taxon, years) %>% 
-#   mutate(cumu_pol = cumsum(replace_na(polpct, 0)),  #cumulative sum of pollen #putting NAs as 0s for calculating seasonal sums 
-#          cumu_pol_r = cumu_pol/sum_pctpol,          #relative sum of pollen
-#          in_95season = case_when(cumu_pol_r < 0.025 ~ "not in 95% season", #is the observation in the 95% pollen season?
-#                                  cumu_pol_r >= 0.025 & cumu_pol_r <= 0.975~ "in 95% season",
-#                                  cumu_pol_r > 0.975 ~ "not in 95% season"))  
-
-#Temporary solution for Cupressaceae season definitions
-#for custom fixes of Cupressaceae seasons that straddle the calendar year
-TX_sites <- c("Austin", "Dallas", "Flower Mound", "Houston", "San Antonio B", "Waco A", "Waco B", "Oklahoma City A", "Phoenix",
-              "Tulsa A")
-west_coast_sites <- c("Eugene", "Pleasanton", "San Diego", "San Jose")
-
-
-#position in pollen season - using sum of pollen /taxon/site across all years
 nab_seasons <- nab %>% 
-  left_join(., nab_focal_all_years) %>% 
-  left_join(., nab_focal_season_sum) %>% 
-  group_by(site, taxon) %>% 
-  arrange(site, taxon, ydays, years ) %>% 
-  mutate(cumu_pol = cumsum(replace_na(pol, 0)),  #cumulative sum of pollen #putting NAs as 0s for calculating seasonal sums 
-         cumu_pol_r = cumu_pol/sum_pol_all_yrs,          #relative sum of pollen
-         in_95season = case_when(cumu_pol_r < 0.025 ~ "not in 95% season", #is the observation in the 95% pollen season?
-                                 cumu_pol_r >= 0.025 & cumu_pol_r <= 0.975~ "in 95% season",
-                                 cumu_pol_r > 0.975 ~ "not in 95% season"),
-         in_99polseason = case_when(cumu_pol_r < 0.005 ~ "not in 99% season", #is the observation in the 95% pollen season?
-                                    cumu_pol_r >= 0.005 & cumu_pol_r <= 0.995~ "in 99% season",
-                                    cumu_pol_r > 0.995 ~ "not in 99% season"))%>% 
-  #manual correction for Cupressaceae season straddling the end of the year: Texas/SW sites
-  mutate(in_95season = case_when(
-    taxon == "Cupressaceae" & site %in% TX_sites & ydays < 125 ~ "in 95% season", 
-    taxon == "Cupressaceae" & site %in% TX_sites & ydays >= 125 & ydays < 275 ~ "not in 95% season",
-    taxon == "Cupressaceae" & site %in% TX_sites & ydays >= 275 ~ "in 95% season",
-    TRUE ~ in_95season )) %>% 
-  #manual correction for Cupressaceae season straddling the end of the year: west coast sites
-  mutate(in_95season = case_when(
-    taxon == "Cupressaceae" & site %in% west_coast_sites & ydays < 200 ~ "in 95% season", 
-    taxon == "Cupressaceae" & site %in% west_coast_sites & ydays >= 200 & ydays < 300 ~ "not in 95% season",
-    taxon == "Cupressaceae" & site %in% west_coast_sites & ydays >= 300 ~ "in 95% season",
-    TRUE ~ in_95season )) %>% 
-  #same but for 99% season
-  mutate(in_99polseason = case_when(
-    taxon == "Cupressaceae" & site %in% TX_sites & ydays < 115 ~ "in 99% season", 
-    taxon == "Cupressaceae" & site %in% TX_sites & ydays >= 115 & ydays < 255 ~ "not in 99% season",
-    taxon == "Cupressaceae" & site %in% TX_sites & ydays >= 255 ~ "in 99% season",
-    TRUE ~ in_99polseason )) %>% 
-  #manual correction for Cupressaceae season straddling the end of the year: west coast sites
-  mutate(in_99polseason = case_when(
-    taxon == "Cupressaceae" & site %in% west_coast_sites & ydays < 180 ~ "in 99% season", 
-    taxon == "Cupressaceae" & site %in% west_coast_sites & ydays >= 180 & ydays < 290 ~ "not in 99% season",
-    taxon == "Cupressaceae" & site %in% west_coast_sites & ydays >= 290 ~ "in 99% season",
-    TRUE ~ in_99polseason ))
+  left_join(., nab_focal_all_years) %>%
+  left_join(., nab_focal_season_sum) %>%
+  left_join(., nab_seasons_ydays)
 
 
 
 # #visual checks of NAB season definitions
-# nab_seasons %>% 
-#   filter(taxon == "Cupressaceae") %>% 
-#   #filter(years > 2011) %>% 
-#   filter(sum_pol_season > 200) %>% 
-#   #filter(nobs_yes_per_season > 50) %>% 
-#   #filter(in_npn_95season == "in 95% season") %>% 
-#   ggplot(aes(x = ydays, y = polpct, group = as.factor(years),
-#              color = in_95season)) + geom_point() + facet_wrap(~site) + theme_bw() 
-# 
-# #visual checks of NAB season definitions: 99%
-# nab_seasons %>% 
-#   filter(taxon == "Quercus") %>% 
-#   #filter(years > 2011) %>% 
-#   filter(sum_pol_season > 200) %>% 
-#   #filter(nobs_yes_per_season > 50) %>% 
-#   #filter(in_npn_95season == "in 95% season") %>% 
-#   ggplot(aes(x = ydays, y = polpct, group = as.factor(years),
-#              color = in_99polseason)) + geom_point() + facet_wrap(~site) + theme_bw() 
+nab_seasons %>%
+  filter(taxon == "Cupressaceae") %>%
+  #filter(years > 2011) %>%
+  #filter(sum_pol_season > 200) %>%
+  #filter(nobs_yes_per_season > 50) %>%
+  #filter(in_npn_95season == "in 95% season") %>%
+  ggplot(aes(x = ydays, y = polpct, group = as.factor(years),
+             color = in_95season)) + geom_point() + facet_wrap(~site) + theme_bw()
+
+#visual checks of NAB season definitions: 99%
+nab_seasons %>%
+  filter(taxon == "Quercus") %>%
+  #filter(years > 2011) %>%
+  filter(sum_pol_season > 200) %>%
+  #filter(nobs_yes_per_season > 50) %>%
+  #filter(in_npn_95season == "in 95% season") %>%
+  ggplot(aes(x = ydays, y = polpct, group = as.factor(years),
+             color = in_99polseason)) + geom_point() + facet_wrap(~site) + theme_bw()
 
 
 ####### load in and prepare NPN data ###############################################################
-npn_raw <- read_csv(here("data", "NPN_near_NAB_220427.csv"))
+npn_raw <- read_csv(here("data", "NPN_near_NAB_220706.csv"))
   
-filt_tmean_dif <- 2 #filter NPN observations that are within X degrees Celsius of the nearest NAB station
+#filt_tmean_dif <- 2 #filter NPN observations that are within X degrees Celsius of the nearest NAB station
 
 npn <- npn_raw %>% 
-  filter(tmean_dif > -filt_tmean_dif & tmean_dif < filt_tmean_dif) %>% #MAT filtering
+ # filter(tmean_dif > -filt_tmean_dif & tmean_dif < filt_tmean_dif) %>% #MAT filtering
   filter(distNAB < (200 * 1000)) %>% #filter by distance from NAB; needs it in meters #160934 = 100 miles, 321869 = 200 miles, 482803 = 300 miles
   mutate(years = year(observation_date),
          doy = yday(observation_date),
@@ -872,9 +837,9 @@ cor_spear %>%
             spear_sd = sd(cor_spear, na.rm = TRUE))
 
 
-### SI 1: sensitivity analyses for temperature and distance cutoffs ##################################
+### Fig X: Distance cut-off vs correlation ##################################
 
-
+#x-axis: distance cut-off, y-axis correlation, color = sample size of observations?
 
 
 
