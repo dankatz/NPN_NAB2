@@ -254,7 +254,7 @@ dist_calc_fun <- function(NAB_station, NAB_station_long, NAB_station_lat){
 }
 
 Sys.time()
-NPN_near_NAB <- pmap_dfr(NAB_coords_notsf, dist_calc_fun) #now takes ~ 15 min on laptop
+NPN_near_NAB <- pmap_dfr(NAB_coords_notsf, dist_calc_fun) #now takes ~ 15 min on laptop, 4 min on desktop
 Sys.time()
 
 #ggplot(NPN_near_NAB, aes(x = distNAB)) + geom_histogram() + facet_wrap(~NAB_station)
@@ -314,7 +314,7 @@ nab <- left_join(date_station_grid, nab_raw) %>%
   mutate(years = year(dates),
          ydays = yday(dates))
 
-# rescale pollen counts to 0-1 #takes 30 min at current configuration
+# rescale pollen counts to 0-1 #takes 25 min on desktop at current configuration
 nab <- nab %>%
   group_by(site, taxon, years) %>%
   mutate(polpct = scales::rescale(pol, to=c(0,1))) %>%  #for each site*taxon*year
@@ -345,7 +345,6 @@ nab_seasons_ydays <-
          in_99polseason = case_when(cumu_pol_r < 0.99 ~ "in 99% season", #is the observation in the 95% pollen season?
                                     cumu_pol_r >= 0.99 ~ "not in 99% season")) %>%
   dplyr::select(site, taxon, ydays, in_95season, in_99polseason)
-
 #ggplot(nab_seasons_ydays, aes(x = ydays, y = pol_mean_yday, color = in_95season)) + geom_point() + theme_bw() + facet_wrap(~taxon)
 
 #total pollen measured per site/taxon (across all years)
@@ -393,7 +392,7 @@ npn_raw <- read_csv(here("data", "NPN_near_NAB_220718.csv"))
 
 npn <- npn_raw %>% 
  # filter(tmean_dif > -filt_tmean_dif & tmean_dif < filt_tmean_dif) %>% #MAT filtering
-  filter(distNAB < (300 * 1000)) %>% #filter by distance from NAB; needs it in meters #160934 = 100 miles, 321869 = 200 miles, 482803 = 300 miles
+  filter(distNAB < (50 * 1000)) %>% #filter by distance from NAB; needs it in meters #160934 = 100 miles, 321869 = 200 miles, 482803 = 300 miles
   mutate(years = year(observation_date),
          doy = yday(observation_date),
          dates_noyr = format(observation_date, format="%m-%d"),
@@ -435,6 +434,7 @@ npn_summary <-
   bind_rows(date_station_grid_npn, npn) %>% 
   arrange(taxon, site, years, dates) %>% 
   group_by(taxon, site, years, dates) %>% 
+  filter(flow_prop != -9999) %>% 
   dplyr::summarize(mean_flow = mean(phenophase_status, na.rm = TRUE),
                    mean_prop_flow = mean(flow_prop, na.rm = TRUE),
                    n_obs = sum(!is.na(observation_id)),
@@ -484,62 +484,78 @@ npn_nobs_season <- npn %>%
 # fill in any NAs in mean_prop_flow_m_ma with 0.0
 npn_join[c("mean_prop_flow")][is.na(npn_join[c("mean_prop_flow")])] <- 0
 
-# 
-# 
-# # #define the pollen season within a year
-# # npn_focal_season_integral <- npn_join %>% 
-# #   group_by(site, taxon, years) %>% 
-# #   summarize(sum_mean_prop_flow = sum(mean_prop_flow, na.rm = TRUE))
-# 
-# #for defining the pollen season across years
-# npn_focal_season_integral <- npn_join %>% 
-#   filter(nobs_yes_per_season > 10) %>% 
-#   group_by(site, taxon) %>% 
+###NEED TO FIGURE OUT WHY THIS IS FUNKY. ALTHOUGH I WAS CONSIDERING REMOVING NPN SEASON DEF ANYHOW...
+
+# #define the pollen season within a year
+# npn_focal_season_integral <- npn_join %>%
+#   group_by(site, taxon, years) %>%
 #   summarize(sum_mean_prop_flow = sum(mean_prop_flow, na.rm = TRUE))
-# 
-# 
-# #add cumulative sum field (by site*taxon) and define 95% & 99%season across all years
-# #switched over to using the proportion of flowers that were open to define season; 
-# #not using interpolated data or NAs in season definitions
-# TX_sites <- c("Austin", "Dallas", "Flower Mound", "Houston", "San Antonio B", "Waco A", "Waco B")
-# 
-# npn_seasons <- npn_join %>% left_join(., npn_focal_season_integral) %>% 
-#   left_join(., npn_nobs_season) %>% 
+
+#for defining the pollen season across years
+npn_focal_season_integral <- npn_join %>%
+  filter(nobs_yes_per_season > 10) %>%
+  group_by(site, taxon) %>%
+  summarize(sum_mean_prop_flow = sum(mean_prop_flow, na.rm = TRUE))
+
+
+#add cumulative sum field (by site*taxon) and define 95% & 99%season across all years
+#switched over to using the proportion of flowers that were open to define season;
+#not using interpolated data or NAs in season definitions
+#TX_sites <- c("Austin", "Dallas", "Flower Mound", "Houston", "San Antonio B", "Waco A", "Waco B")
+
+npn_seasons_ydays <-
+  npn_join %>%
+  #filter(site == "Atlanta") %>%
+  #filter(taxon == "Cupressaceae" | taxon == "Ulmus") %>%
+  arrange(site, taxon, years, doy) %>%
+  mutate( mean_flow_ma = round(rollapply(mean_prop_flow, width=14, FUN=function(x) mean(x, na.rm=TRUE), by=1, partial=TRUE, fill=NA),2) ) %>%
+  group_by(site, taxon, doy) %>%
+  summarize(flow_mean_yday = mean(mean_flow_ma, na.rm = TRUE)) %>%
+  arrange(site, taxon, -flow_mean_yday) %>%
+  mutate(cumu_flow_mean_yday = cumsum(replace_na(flow_mean_yday, 0)),  #cumulative sum of pollen #putting NAs as 0s for calculating seasonal sums
+         cumu_flow = cumu_flow_mean_yday,          #relative sum of pollen
+         cumu_flow_max = max(cumu_flow),
+         cumu_flow_r = cumu_flow/cumu_flow_max,
+         in_npn_95season = case_when(cumu_flow_r < 0.95 ~ "95% season", #is the observation in the 95% pollen season?
+                                 cumu_flow_r >= 0.95 ~ "not in in 95% season"),
+         in_npn_99season = case_when(cumu_flow_r < 0.99 ~ "in 99% season", #is the observation in the 95% pollen season?
+                                    cumu_flow_r >= 0.99 ~ "not in 99% season")) %>%
+  dplyr::select(site, taxon, doy, in_npn_95season, in_npn_99season) %>% 
+  arrange(site, taxon, doy)
+
+
+npn_seasons <- npn_join %>% left_join(., npn_focal_season_integral) %>%
+    left_join(., npn_nobs_season) %>%
+    left_join(., npn_seasons_ydays)
+  
+# npn_seasons <- npn_join %>% left_join(., npn_focal_season_integral) %>%
+#   left_join(., npn_nobs_season) %>%
 #   group_by(site, taxon) %>%  #Could add years here to convert to season definition within year
-#   arrange(site, taxon, doy, years) %>% 
-#   filter(nobs_yes_per_season > 10) %>% 
-#   mutate(cumu_flow = cumsum(replace_na(mean_prop_flow, 0)),  #cumulative sum of pollen #putting NAs as 0s for calculating seasonal sums 
+#   arrange(site, taxon, doy, years) %>%
+#   filter(nobs_yes_per_season > 10) %>%
+#   mutate(cumu_flow = cumsum(replace_na(mean_prop_flow, 0)),  #cumulative sum of pollen #putting NAs as 0s for calculating seasonal sums
 #          cumu_flow_r = cumu_flow/sum_mean_prop_flow,          #relative sum of pollen
 #          in_npn_95season = case_when(cumu_flow_r < 0.025 ~ "not in 95% season", #is the observation in the 95% pollen season?
 #                                      cumu_flow_r >= 0.025 & cumu_flow_r <= 0.975~ "in 95% season",
 #                                      cumu_flow_r > 0.975 ~ "not in 95% season"),
 #          in_npn_99season = case_when(cumu_flow_r < 0.005 ~ "not in 99% season", #is the observation in the 99% pollen season?
 #                                      cumu_flow_r >= 0.005 & cumu_flow_r <= 0.995~ "in 99% season",
-#                                      cumu_flow_r > 0.995 ~ "not in 99% season")) %>% 
-#   #manual correction for Cupressaceae season straddling the end of the year
-#   mutate(in_npn_95season = case_when(taxon == "Cupressaceae" & site %in% TX_sites & doy < 125 ~ "in 95% season", 
-#                                      taxon == "Cupressaceae" & site %in% TX_sites & doy >= 125 & doy < 330 ~ "not in 95% season",
-#                                      taxon == "Cupressaceae" & site %in% TX_sites & doy >= 330 ~ "in 95% season",
-#                                      TRUE ~ in_npn_95season),
-#          in_npn_99season = case_when(taxon == "Cupressaceae" & site %in% TX_sites & doy < 120 ~ "in 99% season", 
-#                                      taxon == "Cupressaceae" & site %in% TX_sites & doy >= 120 & doy < 310 ~ "not in 99% season",
-#                                      taxon == "Cupressaceae" & site %in% TX_sites & doy >= 310 ~ "in 99% season",
-#                                      TRUE ~ in_npn_99season))
-# 
-# #visual checks of NPN season definitions
-# # npn_seasons %>%
-# #   filter(taxon == "Quercus") %>%
-# #   #filter(nobs_yes_per_season > 50) %>%
-# #   #filter(in_npn_95season == "in 95% season") %>%
-# #   ggplot(aes(x = doy, y = mean_prop_flow_ma, group = as.factor(years),
-# #              color = in_npn_95season)) + geom_point() + facet_grid(site~years) + theme_bw()
-# # 
-# # npn_seasons %>% 
-# #   filter(taxon == "Quercus") %>% 
-# #   #filter(nobs_yes_per_season > 50) %>% 
-# #   #filter(in_npn_95season == "in 95% season") %>% 
-# #   ggplot(aes(x = doy, y = mean_prop_flow_m_ma, group = as.factor(years),
-# #              color = in_npn_99season)) + geom_point() + facet_grid(site~years) + theme_bw() 
+#                                      cumu_flow_r > 0.995 ~ "not in 99% season")) 
+
+#visual checks of NPN season definitions
+npn_seasons %>%
+  filter(taxon == "Quercus") %>%
+  #filter(nobs_yes_per_season > 50) %>%
+  #filter(in_npn_95season == "in 95% season") %>%
+  ggplot(aes(x = doy, y = mean_prop_flow_ma, group = as.factor(years),
+             color = in_npn_95season)) + geom_point() + facet_wrap(~site) + theme_bw()
+
+# npn_seasons %>%
+#   filter(taxon == "Quercus") %>%
+#   #filter(nobs_yes_per_season > 50) %>%
+#   #filter(in_npn_95season == "in 95% season") %>%
+#   ggplot(aes(x = doy, y = mean_prop_flow_m_ma, group = as.factor(years),
+#              color = in_npn_99season)) + geom_point() + facet_grid(site~years) + theme_bw()
 
 
 
@@ -556,13 +572,15 @@ nabnpn <- nabnpn %>% mutate(taxon_labs = case_when(taxon == "Cupressaceae" ~ "Cu
                                                    TRUE ~ paste0("<i>", taxon,"</i>")),
                             taxon_labs = as.factor(taxon_labs))
 
+
+
 # check italicizing
 # nabnpn %>% sample_n(1) %>% 
 #   ggplot(aes(x = taxon, y = years)) + geom_point() +
 #   scale_x_discrete(labels = levels(nabnpn$taxon_labs)) +
 #   theme(axis.text.x = ggtext::element_markdown())
 
-
+write_csv(nabnpn, here("data", "nabnpn_50km_220718.csv"))
 
 ### misc data exploration ##################################################################
 # #season summaries
@@ -622,14 +640,14 @@ fig_taxon <- "Quercus"
 fig_year <- 2018
 fig_seasons <- nabnpn %>% filter(site == fig_site & taxon == fig_taxon & years == fig_year) %>%  
   arrange(taxon, site, years, dates)
-fig_season_pol_start <- fig_seasons$dates[min(which (fig_seasons$in_pol95season == "in 95% season"))]
-fig_season_pol_end   <- fig_seasons$dates[max(which (fig_seasons$in_pol95season == "in 95% season"))]
+# fig_season_pol_start <- fig_seasons$dates[min(which (fig_seasons$in_pol95season == "in 95% season"))]
+# fig_season_pol_end   <- fig_seasons$dates[max(which (fig_seasons$in_pol95season == "in 95% season"))]
 # fig_season_npn_start <- fig_seasons$dates[min(which (fig_seasons$in_npn_95season == "in 95% season"))]
 # fig_season_npn_end   <- fig_seasons$dates[max(which (fig_seasons$in_npn_95season == "in 95% season"))]
 fig_season_pol_start <- fig_seasons$dates[min(which (fig_seasons$in_99polseason == "in 99% season"))]
 fig_season_pol_end   <- fig_seasons$dates[max(which (fig_seasons$in_99polseason == "in 99% season"))]
-fig_season_npn_start <- fig_seasons$dates[min(which (fig_seasons$in_npn_99season == "in 99% season"))]
-fig_season_npn_end   <- fig_seasons$dates[max(which (fig_seasons$in_npn_99season == "in 99% season"))]
+# fig_season_npn_start <- fig_seasons$dates[min(which (fig_seasons$in_npn_99season == "in 99% season"))]
+# fig_season_npn_end   <- fig_seasons$dates[max(which (fig_seasons$in_npn_99season == "in 99% season"))]
 
 
 # correlation
@@ -639,7 +657,7 @@ panel_a_cor <-
   filter(taxon == fig_taxon) %>%  #unique(nabnpn$taxon)
   filter(years == fig_year) %>% 
   #filter(in_pol95season == "in 95% season" & in_npn_95season == "in 95% season") %>% 
-  filter(in_99polseason == "in 99% season" & in_npn_99season == "in 99% season") %>% 
+  filter(in_99polseason == "in 99% season" ) %>% 
   #filter(nobs_yes_per_season > 50) %>% 
   #filter(doy > 95 & doy < 175) %>% 
   summarise(out = cor(polpct, mean_prop_flow_ma, use = "complete.obs", method = "spearman")) 
@@ -682,8 +700,8 @@ fig_seasons <- nabnpn %>% filter(site == fig_site & taxon == fig_taxon & years =
 # fig_season_npn_end   <- fig_seasons$dates[max(which (fig_seasons$in_npn_95season == "in 95% season"))]
 fig_season_pol_start <- fig_seasons$dates[min(which (fig_seasons$in_99polseason == "in 99% season"))]
 fig_season_pol_end   <- fig_seasons$dates[max(which (fig_seasons$in_99polseason == "in 99% season"))]
-fig_season_npn_start <- fig_seasons$dates[min(which (fig_seasons$in_npn_99season == "in 99% season"))]
-fig_season_npn_end   <- fig_seasons$dates[max(which (fig_seasons$in_npn_99season == "in 99% season"))]
+# fig_season_npn_start <- fig_seasons$dates[min(which (fig_seasons$in_npn_99season == "in 99% season"))]
+# fig_season_npn_end   <- fig_seasons$dates[max(which (fig_seasons$in_npn_99season == "in 99% season"))]
 
 # correlation
 panel_b_cor <- 
@@ -692,7 +710,7 @@ panel_b_cor <-
   filter(taxon == fig_taxon) %>%  #unique(nabnpn$taxon)
   filter(years == fig_year) %>% 
   #filter(in_pol95season == "in 95% season" & in_npn_95season == "in 95% season") %>% 
-  filter(in_99polseason == "in 99% season" & in_npn_99season == "in 99% season") %>% 
+  filter(in_99polseason == "in 99% season") %>% 
   #filter(nobs_yes_per_season > 50) %>% 
   #filter(doy > 95 & doy < 175) %>% 
   summarise(out = cor(polpct, mean_prop_flow_ma, use = "complete.obs", method = "spearman")) 
@@ -737,8 +755,8 @@ fig_seasons <- nabnpn %>% filter(site == fig_site & taxon == fig_taxon & years =
 # fig_season_npn_end   <- fig_seasons$dates[max(which (fig_seasons$in_npn_95season == "in 95% season"))]
 fig_season_pol_start <- fig_seasons$dates[min(which (fig_seasons$in_99polseason == "in 99% season"))]
 fig_season_pol_end   <- fig_seasons$dates[max(which (fig_seasons$in_99polseason == "in 99% season"))]
-fig_season_npn_start <- fig_seasons$dates[min(which (fig_seasons$in_npn_99season == "in 99% season"))]
-fig_season_npn_end   <- fig_seasons$dates[max(which (fig_seasons$in_npn_99season == "in 99% season"))]
+# fig_season_npn_start <- fig_seasons$dates[min(which (fig_seasons$in_npn_99season == "in 99% season"))]
+# fig_season_npn_end   <- fig_seasons$dates[max(which (fig_seasons$in_npn_99season == "in 99% season"))]
 
 # correlation
 panel_c_cor <- 
@@ -747,7 +765,7 @@ panel_c_cor <-
   filter(taxon == fig_taxon) %>%  #unique(nabnpn$taxon)
   filter(years == fig_year) %>% 
   #filter(in_pol95season == "in 95% season" & in_npn_95season == "in 95% season") %>% 
-  filter(in_99polseason == "in 99% season" & in_npn_99season == "in 99% season") %>% 
+  filter(in_99polseason == "in 99% season") %>% 
   #filter(nobs_yes_per_season > 50) %>% 
   #filter(doy > 95 & doy < 175) %>% 
   summarise(out = cor(polpct, mean_prop_flow_ma, use = "complete.obs", method = "spearman")) 
@@ -781,27 +799,34 @@ cowplot::plot_grid(panel_a, panel_b, panel_c, nrow = 3)
 
 
 ### Fig. 3: overall comparisons ###############################
+nabnpn_50km <- read_csv(here("data", "nabnpn_50km_220718.csv")) %>% mutate(NAB_buffer = 50)
+nabnpn_100km <- read_csv(here("data", "nabnpn_100km_220718.csv")) %>% mutate(NAB_buffer = 100)
+nabnpn_200km <- read_csv(here("data", "nabnpn_200km_220718.csv")) %>% mutate(NAB_buffer = 200)
+nabnpn_300km <- read_csv(here("data", "nabnpn_300km_220718.csv")) %>% mutate(NAB_buffer = 300)
+
+nabnpn_all_dist <- bind_rows(nabnpn_50km, nabnpn_100km, nabnpn_200km, nabnpn_300km)
+
 ### creating a table of correlations by taxon x site
-cor_spear_nobs <- nabnpn %>%  
+cor_spear_nobs <- nabnpn_all_dist %>%  
   #filter(sum_pol_season > 100) %>% 
   #filter(nobs_yes_per_season > 50) %>% 
-  filter(in_npn_99season == "in 99% season" & in_99polseason == "in 99% season") %>% 
+  filter(in_99polseason == "in 99% season") %>% 
   filter(!is.na(mean_prop_flow_ma)) %>% 
   filter(!is.na(polpct)) %>% 
-  group_by(site, taxon, years) %>% 
+  group_by(site, taxon, years, NAB_buffer) %>% 
   summarize(n_obs_comparison = n())
 
 
-cor_spear <- nabnpn %>%  
+cor_spear <- nabnpn_all_dist %>%  
   left_join(., cor_spear_nobs) %>% 
   filter(sum_pol_season > 100) %>% 
   filter(nobs_yes_per_season > 10) %>% 
   filter(n_obs_comparison > 10) %>% 
   #filter(in_npn_95season == "in 95% season" & in_pol95season == "in 95% season") %>% 
-  filter(in_npn_99season == "in 99% season" & in_99polseason == "in 99% season") %>% 
+  filter(in_99polseason == "in 99% season") %>% 
   filter(!is.na(mean_prop_flow_ma)) %>% 
   filter(!is.na(polpct)) %>% 
-  group_by(site, taxon, taxon_labs, years) %>% 
+  group_by(site, taxon, taxon_labs, years, NAB_buffer) %>% 
   mutate(tmean_dif = tmean - tmean_NAB) %>% 
   summarize(n_obs = n(),
             cor_spear = cor(mean_prop_flow_ma, polpct, method = "spearman", use="complete.obs"),
@@ -827,8 +852,8 @@ cor_spear <- nabnpn %>%
 
   cor_spear <- cor_spear %>% mutate(taxon_labs2 = forcats::fct_drop(taxon_labs))
   
-cor_spear #unique(cor_spear$taxon) 
-str(cor_spear$taxon_labs2)
+#cor_spear #unique(cor_spear$taxon) 
+#str(cor_spear$taxon_labs2)
 
 ggplot(cor_spear, aes(x = taxon_labs2, y = cor_spear)) + 
   geom_hline(yintercept = 0, lty = 2) +
@@ -837,17 +862,18 @@ ggplot(cor_spear, aes(x = taxon_labs2, y = cor_spear)) +
   ylab("Spearman correlation between airborne pollen and flowering") +
   scale_color_manual(values = c("gray30", "dodgerblue4", "blue4"), name = "") +
   scale_x_discrete(labels = levels(cor_spear$taxon_labs2), name = "taxa") +
-  theme(axis.text.x = ggtext::element_markdown())
+  theme(axis.text.x = ggtext::element_markdown(angle = 45, vjust = 0.5, hjust=0.5)) +
+  facet_wrap(~NAB_buffer)
 
-ggsave(filename = "Fig_2.jpg", width = 20, height = 15, units = "cm", dpi = 300, scale = 1.25)
+ggsave(filename = "Fig_3.jpg", width = 20, height = 15, units = "cm", dpi = 300, scale = 1.25)
 
 #some stats for results section
 cor_spear %>%  
   summarize(spear_mean = mean(cor_spear, na.rm = TRUE),
             spear_sd = sd(cor_spear, na.rm = TRUE))
 
-cor_spear %>%  
-  group_by(taxon) %>% 
+test <- cor_spear %>%  
+  group_by(taxon, NAB_buffer) %>% 
   summarize(spear_mean = mean(cor_spear, na.rm = TRUE),
             spear_sd = sd(cor_spear, na.rm = TRUE))
 
