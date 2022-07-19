@@ -390,9 +390,14 @@ npn_raw <- read_csv(here("data", "NPN_near_NAB_220718.csv"))
   
 #filt_tmean_dif <- 2 #filter NPN observations that are within X degrees Celsius of the nearest NAB station
 
+
+#start distance loop here
+dist_j_list <- c(50, 100, 200, 300)
+for(j in 1:4){
+dist_j <- dist_j_list[j]
 npn <- npn_raw %>% 
  # filter(tmean_dif > -filt_tmean_dif & tmean_dif < filt_tmean_dif) %>% #MAT filtering
-  filter(distNAB < (50 * 1000)) %>% #filter by distance from NAB; needs it in meters #160934 = 100 miles, 321869 = 200 miles, 482803 = 300 miles
+  filter(distNAB < (dist_j * 1000)) %>% #filter by distance from NAB; needs it in meters #160934 = 100 miles, 321869 = 200 miles, 482803 = 300 miles
   mutate(years = year(observation_date),
          doy = yday(observation_date),
          dates_noyr = format(observation_date, format="%m-%d"),
@@ -580,58 +585,13 @@ nabnpn <- nabnpn %>% mutate(taxon_labs = case_when(taxon == "Cupressaceae" ~ "Cu
 #   scale_x_discrete(labels = levels(nabnpn$taxon_labs)) +
 #   theme(axis.text.x = ggtext::element_markdown())
 
-write_csv(nabnpn, here("data", "nabnpn_50km_220718.csv"))
+file_save_name = paste0("nabnpn_", dist_j, "km_220719.csv")
+write_csv(nabnpn, here("data", file_save_name))
 
-### misc data exploration ##################################################################
-# #season summaries
-# nabnpn %>% dplyr::select(site, taxon, years, sum_pol) %>% distinct() 
-# 
-# #nab data richness
-# nabnpn %>% dplyr::select(site, taxon, years, sum_pol) %>% distinct() %>% 
-#   ggplot(aes(x= years, y = sum_pol))+ geom_point() + facet_grid(site~taxon) + theme_bw() + scale_y_log10()
-# 
-# #npn data richness
-# nabnpn %>% dplyr::select(site, taxon, years, nobs_yes_per_season) %>% distinct() %>% 
-#   ggplot(aes(x= years, y = nobs_yes_per_season))+ geom_point() + facet_grid(site~taxon) + theme_bw() + scale_y_log10()
-# 
-# #visualize npn data
-# nabnpn %>% 
-#   #filter(site == "Armonk") %>% 
-#   filter(nobs_yes_per_season > 50) %>% 
-#   #filter(in_npn_95season == "in 95% season") %>% 
-#   ggplot(aes(x = doy, y = mean_prop_flow_m_ma, group = as.factor(years),
-#              color = in_npn_95season)) + geom_point() + facet_grid(site~taxon) + theme_bw() 
-# 
-# nabnpn %>% 
-#   filter(taxon == "Quercus") %>% 
-#   filter(nobs_yes_per_season > 20) %>% 
-#   #filter(in_npn_95season == "in 95% season") %>% 
-#   ggplot(aes(x = doy, y = mean_prop_flow_m_ma, group = as.factor(years),
-#              color = in_npn_95season)) + geom_point() + facet_grid(site~years) + theme_bw() 
-# 
-# #visualize nab data
-# nabnpn %>% 
-#   filter(site == "Armonk") %>% 
-#   filter(sum_pol > 200) %>% 
-#   ggplot(aes(x = doy, y = pol + 1, group = as.factor(years),
-#              color = in_pol95season)) + geom_point() + facet_grid(site~taxon) + theme_bw()  + scale_y_log10()
-# 
-# ## visualize a few time series as examples
-# nabnpn %>% 
-#   filter(site == "Waterbury") %>%  #unique(nabnpn$site)
-#   filter(taxon == "Quercus") %>%  #unique(nabnpn$taxon)
-#   filter(sum_pol_season > 200) %>% 
-#   filter(nobs_yes_per_season > 50) %>% 
-#   filter(doy > 80 & doy < 155) %>% 
-#   ggplot(aes(x = as.Date(doy, origin = as.Date("2018-01-01")), y = mean_prop_flow_ma * 100)) + geom_line(col = "blue") + theme_few() + facet_wrap(~years) +
-#   geom_point(aes(x = as.Date(doy, origin = as.Date("2018-01-01")), y = polpct * 100)) + xlab("date") + 
-#   scale_y_continuous(name="flowering (% of observations)", sec.axis=sec_axis(~., name="airborne pollen (% of maximum)")) +
-#   theme(axis.title.y.left=element_text(color="blue"), axis.text.y.left=element_text(color="blue")) +
-#   scale_x_date(date_labels = "%b%d")
-
-
+}#end distance loop
 
 ### Fig 2: examples of time series and correlation #############################################################
+nabnpn <- read_csv(here("data", "nabnpn_300km_220718.csv")) %>% mutate(NAB_buffer = 300)
 
 # panel A: Armonk Quercus time series 2018
 #add another example here
@@ -649,7 +609,6 @@ fig_season_pol_end   <- fig_seasons$dates[max(which (fig_seasons$in_99polseason 
 # fig_season_npn_start <- fig_seasons$dates[min(which (fig_seasons$in_npn_99season == "in 99% season"))]
 # fig_season_npn_end   <- fig_seasons$dates[max(which (fig_seasons$in_npn_99season == "in 99% season"))]
 
-
 # correlation
 panel_a_cor <- 
   nabnpn %>% 
@@ -661,9 +620,6 @@ panel_a_cor <-
   #filter(nobs_yes_per_season > 50) %>% 
   #filter(doy > 95 & doy < 175) %>% 
   summarise(out = cor(polpct, mean_prop_flow_ma, use = "complete.obs", method = "spearman")) 
-# ggplot(aes(y = polpct * 100, x = mean_prop_flow_ma * 100)) + geom_point(alpha = 0.7) + 
-#   theme_few() + ylab("airborne pollen (% of maximum)") + xlab("flowering (% of observations)")
-
 
 panel_a <- nabnpn %>% 
   filter(site == fig_site) %>%  #unique(nabnpn$site)
@@ -676,7 +632,7 @@ panel_a <- nabnpn %>%
   theme_few() + #facet_wrap(~years) +
   geom_point(aes(x = dates, y = polpct * 100), alpha = 0.3) + xlab("date") + 
   scale_y_continuous(name="flowering (% of observations)", sec.axis=sec_axis(~., name="airborne pollen (% of maximum)")) +
-  annotate("text", x= ymd_hms("2018/6/05 00:00:00"), y= 98, label= paste0("\U03C1 = ", round(panel_a_cor[3], 2))) + 
+  annotate("text", x= ymd_hms("2018/6/05 00:00:00"), y= 98, label= paste0("\U03C1 = ", round(panel_a_cor, 2))) + 
   theme(axis.title.y.left=element_text(color="blue"), axis.text.y.left=element_text(color="blue")) +
   #scale_x_date(date_labels = "%b %d") +
   # geom_segment(x = fig_season_pol_start, xend = fig_season_pol_end,#pollen 95% season line
@@ -684,8 +640,6 @@ panel_a <- nabnpn %>%
   # geom_segment(x = fig_season_npn_start, xend = fig_season_npn_end,#npn 95% season line
   #              y = -3, yend = -3, col = "blue", lwd = 2)  +
   geom_line(aes(y= zoo::rollmean(polpct * 100, 7, na.pad=TRUE)), col = "gray20") 
-
-
 
 
 # panel B: Springfield Acer time series 2016
@@ -714,8 +668,6 @@ panel_b_cor <-
   #filter(nobs_yes_per_season > 50) %>% 
   #filter(doy > 95 & doy < 175) %>% 
   summarise(out = cor(polpct, mean_prop_flow_ma, use = "complete.obs", method = "spearman")) 
-# ggplot(aes(y = polpct * 100, x = mean_prop_flow_ma * 100)) + geom_point(alpha = 0.7) + 
-#   theme_few() + ylab("airborne pollen (% of maximum)") + xlab("flowering (% of observations)")
 
 panel_b <- nabnpn %>% 
   filter(site == fig_site) %>%  #unique(nabnpn$site)
@@ -730,16 +682,13 @@ panel_b <- nabnpn %>%
   scale_y_continuous(name="flowering (% of observations)", sec.axis=sec_axis(~., name="airborne pollen (% of maximum)")) +
   theme(axis.title.y.left=element_text(color="blue"), axis.text.y.left=element_text(color="blue")) +
   #scale_x_date(date_labels = "%b %d") +
-  annotate("text", x= ymd_hms("2016/6/11 00:00:00"), y= 98, label= paste0("\U03C1 = ", round(panel_b_cor[3], 2))) + 
-  # 
-  # geom_segment(x = fig_season_pol_start, xend = fig_season_pol_end,#pollen 95% season line
+  annotate("text", x= ymd_hms("2016/6/11 00:00:00"), y= 98, label= paste0("\U03C1 = ", round(panel_b_cor, 2))) + 
+ # geom_segment(x = fig_season_pol_start, xend = fig_season_pol_end,#pollen 95% season line
   #              y = -2, yend = -2, col = "black", lwd = 2)  +
   # geom_segment(x = fig_season_npn_start, xend = fig_season_npn_end,#npn 95% season line
   #              y = -3, yend = -3, col = "blue", lwd = 2)  +
   #geom_line(aes(y= zoo::rollmean(polpct * 100, 7, na.pad=TRUE)), col = "gray20") 
   geom_line(aes(y= rollapply(polpct * 100, width=7, FUN=function(x) mean(x, na.rm=TRUE), by=1, partial=TRUE, fill=NA)), col = "gray10") 
-
-
 
 
 # panel C: Atlanta Quercus time series 2014
@@ -764,13 +713,9 @@ panel_c_cor <-
   filter(site == fig_site) %>%  #unique(nabnpn$site)
   filter(taxon == fig_taxon) %>%  #unique(nabnpn$taxon)
   filter(years == fig_year) %>% 
-  #filter(in_pol95season == "in 95% season" & in_npn_95season == "in 95% season") %>% 
   filter(in_99polseason == "in 99% season") %>% 
-  #filter(nobs_yes_per_season > 50) %>% 
-  #filter(doy > 95 & doy < 175) %>% 
   summarise(out = cor(polpct, mean_prop_flow_ma, use = "complete.obs", method = "spearman")) 
-# ggplot(aes(y = polpct * 100, x = mean_prop_flow_ma * 100)) + geom_point(alpha = 0.7) + 
-#   theme_few() + ylab("airborne pollen (% of maximum)") + xlab("flowering (% of observations)")
+
 
 panel_c <- nabnpn %>% 
   filter(site == fig_site) %>%  #unique(nabnpn$site)
@@ -784,7 +729,7 @@ panel_c <- nabnpn %>%
   geom_point(aes(x = dates, y = polpct * 100), alpha = 0.3) + xlab("date") + 
   scale_y_continuous(name="flowering (% of observations)", sec.axis=sec_axis(~., name="airborne pollen (% of maximum)")) +
   theme(axis.title.y.left=element_text(color="blue"), axis.text.y.left=element_text(color="blue")) +
-  annotate("text", x= ymd_hms("2017/4/26 00:00:00"), y= 98, label= paste0("\U03C1 = ", round(panel_c_cor[3], 2))) +
+  annotate("text", x= ymd_hms("2017/4/26 00:00:00"), y= 98, label= paste0("\U03C1 = ", round(panel_c_cor, 2))) +
   #scale_x_date(date_labels = "%b %d") +
   # geom_segment(x = fig_season_pol_start, xend = fig_season_pol_end,#pollen 95% season line
   #              y = -2, yend = -2, col = "black", lwd = 2)  +
@@ -792,14 +737,14 @@ panel_c <- nabnpn %>%
   #              y = -3, yend = -3, col = "blue", lwd = 2)  
   geom_line(aes(y= rollapply(polpct * 100, width=7, FUN=function(x) mean(x, na.rm=TRUE), by=1, partial=TRUE, fill=NA)), col = "gray10") 
 
-
+#plot all panels
 cowplot::plot_grid(panel_a, panel_b, panel_c, nrow = 3)
 
 
 
 
-### Fig. 3: overall comparisons ###############################
-nabnpn_50km <- read_csv(here("data", "nabnpn_50km_220718.csv")) %>% mutate(NAB_buffer = 50)
+### Fig. 3: overall comparisons  of correlation by distance by taxon ##############################################################################
+nabnpn_50km  <- read_csv(here("data", "nabnpn_50km_220718.csv")) %>% mutate(NAB_buffer = 50)
 nabnpn_100km <- read_csv(here("data", "nabnpn_100km_220718.csv")) %>% mutate(NAB_buffer = 100)
 nabnpn_200km <- read_csv(here("data", "nabnpn_200km_220718.csv")) %>% mutate(NAB_buffer = 200)
 nabnpn_300km <- read_csv(here("data", "nabnpn_300km_220718.csv")) %>% mutate(NAB_buffer = 300)
@@ -867,8 +812,8 @@ ggplot(cor_spear, aes(x = taxon_labs2, y = cor_spear)) +
 
 ggsave(filename = "Fig_3.jpg", width = 20, height = 15, units = "cm", dpi = 300, scale = 1.25)
 
-write_csv(cor_spear, here("data", "cor_nabnpn_allbuffers_all_seasons_220719.csv"))
-
+# write_csv(cor_spear, here("data", "cor_nabnpn_allbuffers_all_seasons_220719.csv"))
+# cor_spear <- read_csv(here("data", "cor_nabnpn_allbuffers_all_seasons_220719.csv"))
 #some stats for results section
 cor_spear %>%  
   summarize(spear_mean = mean(cor_spear, na.rm = TRUE),
@@ -879,148 +824,106 @@ cor_nabnpn_all_buffers <- cor_spear %>%
   summarize(spear_mean = mean(cor_spear, na.rm = TRUE),
             spear_sd = sd(cor_spear, na.rm = TRUE))
 
-write_csv(cor_nabnpn_all_buffers, here("data", "cor_nabnpn_allbuffers_summary_220719.csv"))
+# write_csv(cor_nabnpn_all_buffers, here("data", "cor_nabnpn_allbuffers_summary_220719.csv"))
+# cor_nabnpn_all_buffers <- read_csv(here("data", "cor_nabnpn_allbuffers_summary_220719.csv"))
 
-### Fig X: Distance cut-off vs correlation ##################################
+### Fig 4: Distance cut-off vs correlation ##################################
 
 cor_spear %>% 
-  ggplot(aes(x = as.factor(NAB_buffer), y = cor_spear, color = log(n_obs), group = years, alpha = log(n_obs))) + geom_boxplot() + theme_bw() + facet_wrap(~taxon) +
-  scale_color_viridis_c()
-#x-axis: distance cut-off, y-axis correlation, color = sample size of observations?
+  mutate(NAB_buffer_f = as.factor(NAB_buffer)) %>% 
+  ggplot(aes(x = NAB_buffer_f, y = cor_spear)) + geom_boxplot(outlier.shape = NA) + geom_jitter(width = 0.2, alpha = 0.4) + theme_bw() + facet_wrap(~taxon) +
+  xlab("distance buffer (km)") + ylab("correlation (Spearman's r)")
+
+#distance x sample size
+cor_spear %>% 
+  mutate(NAB_buffer_f = as.factor(NAB_buffer),
+         site_years = paste(site, years)) %>% 
+  ggplot(aes(x = NAB_buffer_f, y = n_obs, group = site_years)) + geom_line(alpha = 0.25) + theme_bw() + facet_wrap(~taxon) 
+
+
+#distance x temperature difference
+cor_spear %>% 
+  ggplot(aes(x = distNAB_mean, y = abs(tmean_dif))) + geom_point() + theme_bw() + facet_wrap(~taxon) + geom_smooth(method = "lm")
 
 
 
 
-######## Scraps #######################################################################################
 
+
+
+
+# ### figure for different Acer species over time ###################################
+# # #exploring species composition for Acer for NPN
+# # npn_raw %>% 
+# #   filter(genus == "Acer") %>% 
+# #   group_by(species) %>% 
+# #   summarize(n = n())
+# # 
+# # head(npn_raw)
 # 
-# # #latitude
-# # ggplot(cor_spear, aes(x = taxon, y = cor_spear)) + 
-# #   geom_hline(yintercept = 0, lty = 2) +
-# #   geom_boxplot(outlier.shape = NA) + geom_jitter(aes(group = site, color = lat_mean), width = 0.1, ) + ggthemes::theme_few() +
-# #   ylab("Spearman correlation between airborne pollen and flowering") +
-# #   theme(axis.text.x = element_text(face = "italic")) + 
-# #   scale_color_viridis_c()
+# acer_ny <- npn_raw %>% 
+#   mutate(years = year(observation_date)) %>% 
+#   filter(years == 2016) %>% 
+#   filter(genus == "Acer") %>% 
+#   # filter(species == "rubrum" | #species == "saccharum" | #species == "platanoides" | species == "pensylvanicum" |
+#   #          species == "saccharinum" | 
+#   #          species == "negundo"
+#   #        ) %>% 
+#   filter(NAB_station == "Springfield") %>% 
+#   filter(distNAB < 321869 * 1) %>% #321869 = 200 miles
+#   filter(day_of_year > 50) %>% 
+#   filter(day_of_year < 150) %>% 
+#   arrange(species,  observation_date) %>% 
+#   group_by(species, day_of_year) %>% 
+#   #group_by() %>% 
+#   # mutate(mean_flow = mean(phenophase_status), 
+#   #        mean_flow_m = round(na_interpolation(mean_flow),1),
+#   #        mean_flow_m_ma = round(rollmean(mean_flow_m, 7, na.pad=TRUE),2)) 
+#   dplyr::summarize(mean_flow = mean(phenophase_status),
+#                    mean_prop_flow = mean(flow_prop),
+#                    n_obs = sum(!is.na(observation_id)))  %>% #do not include NA values in n() calculation
+#   filter(n_obs > 3) %>% 
+#   ungroup() 
+# 
+# acer_ny %>% 
+#   filter(species != "platanoides") %>% 
+#   ggplot( aes(x = as.Date(day_of_year, origin = as.Date("2018-01-01")), y = mean_flow, color = species)) + #geom_point() + 
+#   ggthemes::theme_few() + ylab("flowering (% of observations)") + xlab("") + 
+#   scale_x_date(limits = c(ymd("2018-03-01"), ymd("2018-05-24"))) + 
+#   geom_line(aes(x = as.Date(day_of_year, origin = as.Date("2018-01-01")), 
+#                 y=rollmean(mean_flow, 14, na.pad=TRUE))) +#+ facet_wrap(~species)
+#   scale_color_discrete(labels = c(#expression(italic("negundo")),
+#     expression(italic("Acer rubrum")),
+#     expression(italic("Acer saccharum")))) +
+#   ggtitle("Maples near Springfield")
 # 
 # 
-# #latitude
-# ggplot(cor_spear, aes(x = as.factor(site), y = cor_spear)) +
-#   geom_hline(yintercept = 0, lty = 2) +
-#   geom_boxplot(outlier.shape = NA) + 
-#   geom_jitter(aes(group = as.factor(years)), width = 0.1) + 
-#   ggthemes::theme_few() +
-#   ylab("Spearman correlation between airborne pollen and flowering") +
-#   theme(axis.text.x = element_text(face = "italic")) +
-#   facet_wrap(~taxon)
-# 
-# #geographic
-# ggplot(cor_spear, aes(x = long_mean, y = lat_mean, color = cor_spear)) +
-#   geom_jitter(aes(group = as.factor(years)), width = 0.01) + 
-#   ggthemes::theme_few() +
-#   scale_color_viridis_c() +
-#   facet_wrap(~taxon)
-# 
-# 
-# 
-# length(unique(nabnpn$site))
-
-
-
-
-# # creating a similar table without the temperature restriction 
-# # (i.e., manually re-running script after changing filt_tmean_dif)
-# cor_spear_notemp <- nabnpn %>%  
+# #comparing nab and npn data - Spearman's - using scaled pollen values
+# formula <- y ~ x 
+# nabnpn %>% 
 #   filter(sum_pol > 200) %>% 
 #   filter(nobs_yes_per_season > 50) %>% 
 #   filter(in_npn_95season == "in 95% season" & in_pol95season == "in 95% season") %>% 
-#   #filter(site == "Armonk" & taxon == "Quercus") %>% 
-#   filter(!is.na(mean_prop_flow_ma)) %>% 
-#   filter(!is.na(polpct)) %>% 
-#   group_by(site, taxon, years) %>% 
-#   summarize(cor_spear = cor(mean_prop_flow_ma, polpct, method = "spearman"),
-#             n = n()) %>% 
-#   mutate(cor_spear = round(cor_spear, 2)) %>% 
-#   arrange(taxon)
-# cor_spear_notemp
-# write.table(cor_spear_notemp, "clipboard", sep="\t", row.names=FALSE, col.names=FALSE)
+#   filter(taxon == "Acer") %>% 
+#   ggplot(aes(x = mean_prop_flow_ma * 100, y = polpct * 100)) + 
+#   geom_point(alpha = 0.3) + facet_grid(site~years) + ggthemes::theme_few()  + #scale_y_log10() +
+#   xlab("observed in flower (%)") + ylab("airborne pollen (% of maximum)") + 
+#   #geom_smooth(method = "lm") + 
+#   stat_cor(method = "spearman", cor.coef.name = "rho")
 # 
 # 
-
-
-
-
-### figure for different Acer species over time ###################################
-# #exploring species composition for Acer for NPN
-# npn_raw %>% 
-#   filter(genus == "Acer") %>% 
-#   group_by(species) %>% 
-#   summarize(n = n())
-# 
-# head(npn_raw)
-
-acer_ny <- npn_raw %>% 
-  mutate(years = year(observation_date)) %>% 
-  filter(years == 2016) %>% 
-  filter(genus == "Acer") %>% 
-  # filter(species == "rubrum" | #species == "saccharum" | #species == "platanoides" | species == "pensylvanicum" |
-  #          species == "saccharinum" | 
-  #          species == "negundo"
-  #        ) %>% 
-  filter(NAB_station == "Springfield") %>% 
-  filter(distNAB < 321869 * 1) %>% #321869 = 200 miles
-  filter(day_of_year > 50) %>% 
-  filter(day_of_year < 150) %>% 
-  arrange(species,  observation_date) %>% 
-  group_by(species, day_of_year) %>% 
-  #group_by() %>% 
-  # mutate(mean_flow = mean(phenophase_status), 
-  #        mean_flow_m = round(na_interpolation(mean_flow),1),
-  #        mean_flow_m_ma = round(rollmean(mean_flow_m, 7, na.pad=TRUE),2)) 
-  dplyr::summarize(mean_flow = mean(phenophase_status),
-                   mean_prop_flow = mean(flow_prop),
-                   n_obs = sum(!is.na(observation_id)))  %>% #do not include NA values in n() calculation
-  filter(n_obs > 3) %>% 
-  ungroup() 
-
-acer_ny %>% 
-  filter(species != "platanoides") %>% 
-  ggplot( aes(x = as.Date(day_of_year, origin = as.Date("2018-01-01")), y = mean_flow, color = species)) + #geom_point() + 
-  ggthemes::theme_few() + ylab("flowering (% of observations)") + xlab("") + 
-  scale_x_date(limits = c(ymd("2018-03-01"), ymd("2018-05-24"))) + 
-  geom_line(aes(x = as.Date(day_of_year, origin = as.Date("2018-01-01")), 
-                y=rollmean(mean_flow, 14, na.pad=TRUE))) +#+ facet_wrap(~species)
-  scale_color_discrete(labels = c(#expression(italic("negundo")),
-    expression(italic("Acer rubrum")),
-    expression(italic("Acer saccharum")))) +
-  ggtitle("Maples near Springfield")
-
-
-#comparing nab and npn data - Spearman's - using scaled pollen values
-formula <- y ~ x 
-nabnpn %>% 
-  filter(sum_pol > 200) %>% 
-  filter(nobs_yes_per_season > 50) %>% 
-  filter(in_npn_95season == "in 95% season" & in_pol95season == "in 95% season") %>% 
-  filter(taxon == "Acer") %>% 
-  ggplot(aes(x = mean_prop_flow_ma * 100, y = polpct * 100)) + 
-  geom_point(alpha = 0.3) + facet_grid(site~years) + ggthemes::theme_few()  + #scale_y_log10() +
-  xlab("observed in flower (%)") + ylab("airborne pollen (% of maximum)") + 
-  #geom_smooth(method = "lm") + 
-  stat_cor(method = "spearman", cor.coef.name = "rho")
-
-
-nabnpn %>% 
-  filter(site == "Springfield") %>%  #unique(nabnpn$site)
-  filter(taxon == "Acer") %>%  #unique(nabnpn$taxon)
-  filter(sum_pol > 200) %>% 
-  filter(years == 2016 ) %>% 
-  filter(nobs_yes_per_season > 30) %>% 
-  filter(doy > 50 & doy < 175) %>% 
-  ggplot(aes(x = as.Date(doy, origin = as.Date("2018-01-01")), y = mean_prop_flow_ma * 100)) + geom_line(col = "blue") + 
-  theme_few() + facet_grid(site~years) +
-  geom_point(aes(x = as.Date(doy, origin = as.Date("2018-01-01")), y = polpct * 100)) + xlab("date") + 
-  scale_y_continuous(name="flowering (% of observations)", sec.axis=sec_axis(~., name="airborne pollen (% of maximum)")) +
-  theme(axis.title.y.left=element_text(color="blue"), axis.text.y.left=element_text(color="blue")) +
-  scale_x_date(date_labels = "%b %d")
+# nabnpn %>% 
+#   filter(site == "Springfield") %>%  #unique(nabnpn$site)
+#   filter(taxon == "Acer") %>%  #unique(nabnpn$taxon)
+#   filter(sum_pol > 200) %>% 
+#   filter(years == 2016 ) %>% 
+#   filter(nobs_yes_per_season > 30) %>% 
+#   filter(doy > 50 & doy < 175) %>% 
+#   ggplot(aes(x = as.Date(doy, origin = as.Date("2018-01-01")), y = mean_prop_flow_ma * 100)) + geom_line(col = "blue") + 
+#   theme_few() + facet_grid(site~years) +
+#   geom_point(aes(x = as.Date(doy, origin = as.Date("2018-01-01")), y = polpct * 100)) + xlab("date") + 
+#   scale_y_continuous(name="flowering (% of observations)", sec.axis=sec_axis(~., name="airborne pollen (% of maximum)")) +
+#   theme(axis.title.y.left=element_text(color="blue"), axis.text.y.left=element_text(color="blue")) +
+#   scale_x_date(date_labels = "%b %d")
 
 
