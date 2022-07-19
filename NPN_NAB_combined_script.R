@@ -858,7 +858,7 @@ cor_spear <- nabnpn_all_dist %>%
 ggplot(cor_spear, aes(x = taxon_labs2, y = cor_spear)) + 
   geom_hline(yintercept = 0, lty = 2) +
   geom_boxplot(outlier.shape = NA) + geom_jitter(aes(group = site,
-                                                     color = cor_p_value_discrete), width = 0.1, alpha = .15) + ggthemes::theme_few() +
+                                                     color = cor_p_value_discrete), width = 0.1, alpha = .45) + ggthemes::theme_few() +
   ylab("Spearman correlation between airborne pollen and flowering") +
   scale_color_manual(values = c("gray30", "dodgerblue4", "blue4"), name = "") +
   scale_x_discrete(labels = levels(cor_spear$taxon_labs2), name = "taxa") +
@@ -867,19 +867,25 @@ ggplot(cor_spear, aes(x = taxon_labs2, y = cor_spear)) +
 
 ggsave(filename = "Fig_3.jpg", width = 20, height = 15, units = "cm", dpi = 300, scale = 1.25)
 
+write_csv(cor_spear, here("data", "cor_nabnpn_allbuffers_all_seasons_220719.csv"))
+
 #some stats for results section
 cor_spear %>%  
   summarize(spear_mean = mean(cor_spear, na.rm = TRUE),
             spear_sd = sd(cor_spear, na.rm = TRUE))
 
-test <- cor_spear %>%  
+cor_nabnpn_all_buffers <- cor_spear %>%  
   group_by(taxon, NAB_buffer) %>% 
   summarize(spear_mean = mean(cor_spear, na.rm = TRUE),
             spear_sd = sd(cor_spear, na.rm = TRUE))
 
+write_csv(cor_nabnpn_all_buffers, here("data", "cor_nabnpn_allbuffers_summary_220719.csv"))
 
 ### Fig X: Distance cut-off vs correlation ##################################
 
+cor_spear %>% 
+  ggplot(aes(x = as.factor(NAB_buffer), y = cor_spear, color = log(n_obs), group = years, alpha = log(n_obs))) + geom_boxplot() + theme_bw() + facet_wrap(~taxon) +
+  scale_color_viridis_c()
 #x-axis: distance cut-off, y-axis correlation, color = sample size of observations?
 
 
