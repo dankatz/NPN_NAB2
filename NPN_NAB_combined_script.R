@@ -280,9 +280,9 @@ write_csv(NPN_near_NAB2, here("data", "NPN_near_NAB_220718.csv"))
 
 
 #double check that everything added up well
-NPN_near_NAB2 %>% 
+test <- NPN_near_NAB2 %>% 
   group_by(NAB_station) %>% 
-  filter(genus == "Quercus") %>%   
+  #filter(genus == "Quercus") %>%   
   summarize(n = n())
 
 
@@ -327,6 +327,7 @@ nab <- nab %>%
 #ggplot(nab, aes(x = polpct_allyrs)) + geom_histogram() + theme_bw() + facet_grid(taxon~site) #graphical check
 
 #write_csv(nab, here("data", "NPN_near_NAB_scaled_220718.csv"))
+nab <- read_csv(here("data", "NPN_near_NAB_scaled_220718.csv"))
 
 ## create NAB season definitions based on pollen integral =================================================
 
@@ -349,7 +350,7 @@ nab_seasons_ydays <-
          in_99polseason = case_when(cumu_pol_r < 0.99 ~ "in 99% season", #is the observation in the 95% pollen season?
                                     cumu_pol_r >= 0.99 ~ "not in 99% season")) %>%
   dplyr::select(site, taxon, ydays, in_95season, in_99polseason)
-#ggplot(nab_seasons_ydays, aes(x = ydays, y = pol_mean_yday, color = in_95season)) + geom_point() + theme_bw() + facet_wrap(~taxon)
+#ggplot(nab_seasons_ydays, aes(x = ydays, y = in_95season, color = in_99polseason)) + geom_point() + theme_bw() + facet_wrap(~taxon)
 
 #total pollen measured per site/taxon (across all years)
 nab_focal_all_years <- nab %>% 
@@ -755,6 +756,8 @@ nabnpn_300km <- read_csv(here("data", "nabnpn_300km_220718.csv")) %>% mutate(NAB
 
 nabnpn_all_dist <- bind_rows(nabnpn_50km, nabnpn_100km, nabnpn_200km, nabnpn_300km)
 
+length(unique(nabnpn_all_dist$site))
+
 ### creating a table of correlations by taxon x site
 cor_spear_nobs <- nabnpn_all_dist %>%  
   #filter(sum_pol_season > 100) %>% 
@@ -789,10 +792,12 @@ cor_spear <- nabnpn_all_dist %>%
   ) %>% 
   mutate(cor_spear = round(cor_spear, 2),
          cor_p_value_discrete = case_when(cor_p_value >= 0.05 ~ "ns",
-                                          cor_p_value < 0.05 &
-                                            cor_p_value >= 0.01 ~ "p < 0.05",
-                                          cor_p_value < 0.01 ~ "p < 0.01")) %>% 
-  mutate(cor_p_value_discrete = factor(cor_p_value_discrete, levels = c("ns", "p < 0.05", "p < 0.01"))) %>% 
+                                          cor_p_value < 0.05 #& cor_p_value >= 0.01 
+                                          ~ "p < 0.05",
+                                          #cor_p_value < 0.01 ~ "p < 0.01"
+                                          )) %>% 
+  mutate(cor_p_value_discrete = factor(cor_p_value_discrete, levels = c("ns", "p < 0.05")),
+         taxon_labs2 = as.character(taxon_labs)) %>% #, "p < 0.01"
   arrange(taxon) %>% 
   filter(!is.na(cor_spear)) %>% 
   ungroup()
@@ -801,19 +806,32 @@ cor_spear <- nabnpn_all_dist %>%
 
   cor_spear <- cor_spear %>% mutate(taxon_labs2 = forcats::fct_drop(taxon_labs))
   
+  length(unique(cor_spear$site))
 #cor_spear #unique(cor_spear$taxon) 
 #str(cor_spear$taxon_labs2)
 
-ggplot(cor_spear, aes(x = taxon_labs2, y = cor_spear)) + 
-  geom_hline(yintercept = 0, lty = 2) +
-  geom_boxplot(outlier.shape = NA) + geom_jitter(aes(group = site,
-                                                     color = cor_p_value_discrete), width = 0.1, alpha = .45) + ggthemes::theme_few() +
-  ylab("Spearman correlation between airborne pollen and flowering") +
-  scale_color_manual(values = c("gray30", "dodgerblue4", "blue4"), name = "") +
-  scale_x_discrete(labels = levels(cor_spear$taxon_labs2), name = "taxa") +
-  theme(axis.text.x = ggtext::element_markdown(angle = 45, vjust = 0.5, hjust=0.5)) +
-  facet_wrap(~NAB_buffer)
+# ggplot(cor_spear, aes(x = taxon_labs2, y = cor_spear)) +
+#   geom_hline(yintercept = 0, lty = 2) +
+#   geom_boxplot(outlier.shape = NA) + geom_jitter(aes(group = site,
+#                                                      color = cor_p_value_discrete), width = 0.1, alpha = .45) + ggthemes::theme_few() +
+#   ylab("Spearman correlation between airborne pollen and flowering") +
+#   scale_color_manual(values = c("gray30", "dodgerblue4", "blue4"), name = "") +
+#   scale_x_discrete(labels = levels(cor_spear$taxon_labs2), name = "taxa") +
+#   theme(axis.text.x = ggtext::element_markdown(angle = 45, vjust = 0.5, hjust=0.5)) +
+#   facet_wrap(~NAB_buffer)
+# 
+# ggsave(filename = "Fig_3.jpg", width = 20, height = 15, units = "cm", dpi = 300, scale = 1.25)
 
+ggplot(cor_spear, aes(x = as.factor(NAB_buffer), y = cor_spear)) + 
+  geom_hline(yintercept = 0, lty = 2) +
+  geom_boxplot(outlier.shape = NA) + geom_jitter(aes(color = cor_p_value_discrete), width = 0.1, alpha = .85) + ggthemes::theme_few() +
+  ylab("Spearman correlation between airborne pollen and flowering") +
+  scale_color_manual(values = c("gray50", "blue4"), name = "") +
+  xlab("distance from NAB station (km)") +
+  theme(strip.text.x = ggtext::element_markdown()) +
+  facet_wrap(~taxon_labs2)
+
+str(cor_spear)
 ggsave(filename = "Fig_3.jpg", width = 20, height = 15, units = "cm", dpi = 300, scale = 1.25)
 
 # write_csv(cor_spear, here("data", "cor_nabnpn_allbuffers_all_seasons_220719.csv"))
