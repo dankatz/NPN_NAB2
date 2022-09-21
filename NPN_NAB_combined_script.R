@@ -1,7 +1,7 @@
 ### NPN-NAB direct comparison manuscript  ####################################################################
-# This version is going to be a stand-alone manuscript that Liz will lead. 
+# This version is going to be a stand-alone manuscript that Theresa and Liz will lead. 
 # It will focus on raw comparisons of NPN and NAB data, in contrast to the short communication on the modeling potential of NPN data
-# authors: Liz Vogt, Dan Katz, Arie Managan, Claudia Brown, Dan Dalan, Kai Zhu, Yiluan Song, and Theresa Crimmins
+# authors: Theresa Crimmins, Liz Vogt, Arie Managan, Claudia Brown, Dan Dalan, Kai Zhu, Yiluan Song, and Dan Katz
 # This script includes data assembly, analysis, and visualization 
 
 
@@ -170,14 +170,15 @@ npn_active_flow %>% filter(flow_prop != 0) %>%
   group_by(genus) %>% summarize(n = n()) %>% print(n = Inf)
 
 
-
-#observations for pollen release
-npn_pol <- filter(npn_direct_flag, phenophase_id == 502 | phenophase_id == 503) %>% 
-  filter(phenophase_status != -1)
-
-npn_pol %>% 
-  group_by(phenophase_status) %>% 
-  dplyr::summarize(n_obs = n()) %>% print(n = Inf)
+# # justification for not including pollen release
+# #observations for pollen release
+# npn_pol <- filter(npn_direct_flag, phenophase_id == 502 | phenophase_id == 503) %>% 
+#   filter(phenophase_status != -1)
+# 
+# #there are only ~18000 obs of pollen release, so I don't think it make sense to use this phenophase
+# npn_pol %>% 
+#   group_by(phenophase_status) %>% 
+#   dplyr::summarize(n_obs = n()) %>% print(n = Inf)
 
 
 
@@ -396,13 +397,23 @@ npn_raw <- read_csv(here("data", "NPN_near_NAB_220718.csv"))
 #filt_tmean_dif <- 2 #filter NPN observations that are within X degrees Celsius of the nearest NAB station
 
 
-#start distance loop here
+# #start distance loop here
+# to run the mean annual temperature cutoff loop, comment out the distance loop start and add this in
 dist_j_list <- c(50, 100, 200, 300)
 for(j in 1:4){
 dist_j <- dist_j_list[j]
+temp_k <- 3
+
+# #start temperature loop here
+# #to run the mean annual temperature cutoff loop, comment out the distance loop start and add this in
+# MAT_k_list <- c(0.5, 1, 2, 3)
+# for(k in 1:4){
+# temp_k <- MAT_k_list[k]
+# dist_j <- 300
+
 npn <- npn_raw %>% 
- # filter(tmean_dif > -filt_tmean_dif & tmean_dif < filt_tmean_dif) %>% #MAT filtering
   filter(distNAB < (dist_j * 1000)) %>% #filter by distance from NAB; needs it in meters #160934 = 100 miles, 321869 = 200 miles, 482803 = 300 miles
+  filter(tmean_dif > -temp_k & tmean_dif < temp_k) %>% #MAT filtering
   mutate(years = year(observation_date),
          doy = yday(observation_date),
          dates_noyr = format(observation_date, format="%m-%d"),
@@ -590,13 +601,19 @@ nabnpn <- nabnpn %>% mutate(taxon_labs = case_when(taxon == "Cupressaceae" ~ "Cu
 #   scale_x_discrete(labels = levels(nabnpn$taxon_labs)) +
 #   theme(axis.text.x = ggtext::element_markdown())
 
-file_save_name = paste0("nabnpn_", dist_j, "km_220719.csv")
+
+#comment/uncomment this to correspond with either the temperature or distance loop
+file_save_name = paste0("nabnpn_", dist_j, "km_2c_220921.csv")
 write_csv(nabnpn, here("data", file_save_name))
 
-}#end distance loop
+# file_save_name = paste0("nabnpn_", temp_k, "_c_dist_500km_220921.csv")
+# write_csv(nabnpn, here("data", file_save_name))
+
+}#end distance OR temperature loop
+beepr::beep(sound  = "treasure")
 
 ### Fig 2: examples of time series and correlation #############################################################
-nabnpn <- read_csv(here("data", "nabnpn_300km_220718.csv")) %>% mutate(NAB_buffer = 300)
+nabnpn <- read_csv(here("data", "nabnpn_300km_2c_220921.csv")) %>% mutate(NAB_buffer = 300)
 
 # panel A: Armonk Quercus time series 2018
 #add another example here
@@ -749,10 +766,10 @@ cowplot::plot_grid(panel_a, panel_b, panel_c, nrow = 3)
 
 
 ### Fig. 3: overall comparisons  of correlation by distance by taxon ##############################################################################
-nabnpn_50km  <- read_csv(here("data", "nabnpn_50km_220718.csv")) %>% mutate(NAB_buffer = 50)
-nabnpn_100km <- read_csv(here("data", "nabnpn_100km_220718.csv")) %>% mutate(NAB_buffer = 100)
-nabnpn_200km <- read_csv(here("data", "nabnpn_200km_220718.csv")) %>% mutate(NAB_buffer = 200)
-nabnpn_300km <- read_csv(here("data", "nabnpn_300km_220718.csv")) %>% mutate(NAB_buffer = 300)
+nabnpn_50km  <- read_csv(here("data", "nabnpn_50km_2c_220921.csv")) %>% mutate(NAB_buffer = 50)
+nabnpn_100km <- read_csv(here("data", "nabnpn_100km_2c_220921.csv")) %>% mutate(NAB_buffer = 100)
+nabnpn_200km <- read_csv(here("data", "nabnpn_200km_2c_220921.csv")) %>% mutate(NAB_buffer = 200)
+nabnpn_300km <- read_csv(here("data", "nabnpn_300km_2c_220921.csv")) %>% mutate(NAB_buffer = 300)
 
 nabnpn_all_dist <- bind_rows(nabnpn_50km, nabnpn_100km, nabnpn_200km, nabnpn_300km)
 
@@ -831,10 +848,10 @@ ggplot(cor_spear, aes(x = as.factor(NAB_buffer), y = cor_spear)) +
   theme(strip.text.x = ggtext::element_markdown()) +
   facet_wrap(~taxon_labs2)
 
-str(cor_spear)
+
 ggsave(filename = "Fig_3.jpg", width = 20, height = 15, units = "cm", dpi = 300, scale = 1.25)
 
-# write_csv(cor_spear, here("data", "cor_nabnpn_allbuffers_all_seasons_220719.csv"))
+# write_csv(cor_spear, here("data", "cor_nabnpn_alldistbuffers_2c_all_seasons_220921.csv"))
 # cor_spear <- read_csv(here("data", "cor_nabnpn_allbuffers_all_seasons_220719.csv"))
 #some stats for results section
 cor_spear %>%  
@@ -849,27 +866,108 @@ cor_nabnpn_all_buffers <- cor_spear %>%
 # write_csv(cor_nabnpn_all_buffers, here("data", "cor_nabnpn_allbuffers_summary_220719.csv"))
 # cor_nabnpn_all_buffers <- read_csv(here("data", "cor_nabnpn_allbuffers_summary_220719.csv"))
 
-### Fig 4: Distance cut-off vs correlation ##################################
+### Fig. 4: overall comparisons  of correlation by temperature cutoff by taxon ##############################################################################
+nabnpn_0.5c  <- read_csv(here("data", "nabnpn_0.5_c_dist_300km_220921.csv")) %>% mutate(temper_buffer = 0.5)
+nabnpn_1c <- read_csv(here("data", "nabnpn_1_c_dist_300km_220921.csv")) %>% mutate(temper_buffer = 1)
+nabnpn_2c <- read_csv(here("data", "nabnpn_2_c_dist_300km_220921.csv")) %>% mutate(temper_buffer = 2)
+nabnpn_3c <- read_csv(here("data", "nabnpn_3_c_dist_300km_220921.csv")) %>% mutate(temper_buffer = 3)
 
-cor_spear %>% 
-  mutate(NAB_buffer_f = as.factor(NAB_buffer)) %>% 
-  ggplot(aes(x = NAB_buffer_f, y = cor_spear)) + geom_boxplot(outlier.shape = NA) + geom_jitter(width = 0.2, alpha = 0.4) + theme_bw() + facet_wrap(~taxon) +
-  xlab("distance buffer (km)") + ylab("correlation (Spearman's r)")
+nabnpn_all_temp <- bind_rows(nabnpn_0.5c, nabnpn_1c, nabnpn_2c, nabnpn_3c)
+length(unique(nabnpn_all_temp$site))
 
-#distance x sample size
-cor_spear %>% 
-  mutate(NAB_buffer_f = as.factor(NAB_buffer),
-         site_years = paste(site, years)) %>% 
-  ggplot(aes(x = NAB_buffer_f, y = n_obs, group = site_years)) + geom_line(alpha = 0.25) + theme_bw() + facet_wrap(~taxon) 
-
-
-#distance x temperature difference
-cor_spear %>% 
-  ggplot(aes(x = distNAB_mean, y = abs(tmean_dif))) + geom_point() + theme_bw() + facet_wrap(~taxon) + geom_smooth(method = "lm")
+### creating a table of correlations by taxon x site
+cor_spear_nobs <- nabnpn_all_temp %>%  
+  #filter(sum_pol_season > 100) %>% 
+  #filter(nobs_yes_per_season > 50) %>% 
+  filter(in_99polseason == "in 99% season") %>% 
+  filter(!is.na(mean_prop_flow_ma)) %>% 
+  filter(!is.na(polpct)) %>% 
+  group_by(site, taxon, years, temper_buffer) %>% 
+  summarize(n_obs_comparison = n())
 
 
+cor_spear <- nabnpn_all_temp %>%  
+  left_join(., cor_spear_nobs) %>% 
+  filter(sum_pol_season > 100) %>% 
+  filter(nobs_yes_per_season > 10) %>% 
+  filter(n_obs_comparison > 10) %>% 
+  #filter(in_npn_95season == "in 95% season" & in_pol95season == "in 95% season") %>% 
+  filter(in_99polseason == "in 99% season") %>% 
+  filter(!is.na(mean_prop_flow_ma)) %>% 
+  filter(!is.na(polpct)) %>% 
+  group_by(site, taxon, taxon_labs, years, temper_buffer) %>% 
+  mutate(tmean_dif = tmean - tmean_NAB) %>% 
+  summarize(n_obs = n(),
+            cor_spear = cor(mean_prop_flow_ma, polpct, method = "spearman", use="complete.obs"),
+            cor_p_value = cor.test(mean_prop_flow_ma, polpct, method = "spearman", use="complete.obs")$p.value,
+            unique_observers = mean(unique_observers),
+            tmean_dif = mean(tmean_dif, na.rm = TRUE),
+            tmean = mean(tmean, na.rm = TRUE),
+            lat_mean = mean(lat_mean, na.rm = TRUE),
+            long_mean = mean(long_mean, na.rm = TRUE),
+            distNAB_mean = mean(distNAB_mean, na.rm = TRUE)
+  ) %>% 
+  mutate(cor_spear = round(cor_spear, 2),
+         cor_p_value_discrete = case_when(cor_p_value >= 0.05 ~ "ns",
+                                          cor_p_value < 0.05 #& cor_p_value >= 0.01 
+                                          ~ "p < 0.05",
+                                          #cor_p_value < 0.01 ~ "p < 0.01"
+         )) %>% 
+  mutate(cor_p_value_discrete = factor(cor_p_value_discrete, levels = c("ns", "p < 0.05")),
+         taxon_labs2 = as.character(taxon_labs)) %>% #, "p < 0.01"
+  arrange(taxon) %>% 
+  filter(!is.na(cor_spear)) %>% 
+  ungroup()
+
+#str(cor_spear$taxon_labs)
+
+cor_spear <- cor_spear %>% mutate(taxon_labs2 = forcats::fct_drop(taxon_labs))
+
+# write_csv(cor_spear, here("data", "cor_nabnpn_all_temp_buffers_300km_all_seasons_220921.csv"))
+# cor_spear <- read_csv(here("data", "cor_nabnpn_all_temp_buffers_300km_all_seasons_220921.csv"))
+
+length(unique(cor_spear$site))
+#cor_spear #unique(cor_spear$taxon) 
+#str(cor_spear$taxon_labs2)
+
+# ggplot(cor_spear, aes(x = taxon_labs2, y = cor_spear)) +
+#   geom_hline(yintercept = 0, lty = 2) +
+#   geom_boxplot(outlier.shape = NA) + geom_jitter(aes(group = site,
+#                                                      color = cor_p_value_discrete), width = 0.1, alpha = .45) + ggthemes::theme_few() +
+#   ylab("Spearman correlation between airborne pollen and flowering") +
+#   scale_color_manual(values = c("gray30", "dodgerblue4", "blue4"), name = "") +
+#   scale_x_discrete(labels = levels(cor_spear$taxon_labs2), name = "taxa") +
+#   theme(axis.text.x = ggtext::element_markdown(angle = 45, vjust = 0.5, hjust=0.5)) +
+#   facet_wrap(~temper_buffer)
+# 
+# ggsave(filename = "Fig_3.jpg", width = 20, height = 15, units = "cm", dpi = 300, scale = 1.25)
+
+ggplot(cor_spear, aes(x = as.factor(temper_buffer), y = cor_spear)) + 
+  geom_hline(yintercept = 0, lty = 2) +
+  geom_boxplot(outlier.shape = NA) + geom_jitter(aes(color = cor_p_value_discrete), width = 0.1, alpha = .85) + ggthemes::theme_few() +
+  ylab("Spearman correlation between airborne pollen and flowering") +
+  scale_color_manual(values = c("gray50", "blue4"), name = "") +
+  #xlab("temperature difference from NAB station (C)") +
+  xlab(expression("temperature difference from NAB station ("*degree*"C)")) +
+  theme(strip.text.x = ggtext::element_markdown()) +
+  facet_wrap(~taxon_labs2)
 
 
+ggsave(filename = "Fig_3_temp.jpg", width = 20, height = 15, units = "cm", dpi = 300, scale = 1.25)
+
+
+#some stats for results section
+cor_spear %>%  
+  summarize(spear_mean = mean(cor_spear, na.rm = TRUE),
+            spear_sd = sd(cor_spear, na.rm = TRUE))
+
+cor_nabnpn_all_buffers <- cor_spear %>%  
+  group_by(taxon, temper_buffer) %>% 
+  summarize(spear_mean = mean(cor_spear, na.rm = TRUE),
+            spear_sd = sd(cor_spear, na.rm = TRUE))
+
+# write_csv(cor_nabnpn_all_buffers, here("data", "cor_nabnpn_alltempbuffers_300_km_summary_220921.csv"))
+# cor_nabnpn_all_buffers <- read_csv(here("data", "cor_nabnpn_alltempbuffers_300_km_summary_220921.csv"))
 
 
 
@@ -892,98 +990,66 @@ cor_spear %>%
 unique(npn_raw$NAB_station)
 names(npn_raw)
 
+
+focal_NAB <- "Asheville"
+focal_yr <- 2020
 acer_ny <- npn_raw %>%
   mutate(years = year(observation_date)) %>%
-  filter(years == 2016) %>%
   filter(genus == "Acer") %>%
-  # filter(species == "rubrum" | #species == "saccharum" | #species == "platanoides" | species == "pensylvanicum" |
+  filter(years == focal_yr) %>% 
+  filter(distNAB < (200 * 1000)) %>% #filter by distance from NAB; needs it in meters #160934 = 100 miles, 321869 = 200 miles, 482803 = 300 miles
+   filter(tmean_dif > -2 & tmean_dif < 32) %>% #MAT filtering
+  filter(NAB_station == focal_NAB) %>%
+   # filter(species == "rubrum" | #species == "saccharum" | #species == "platanoides" | species == "pensylvanicum" |
   #          species == "saccharinum" |
   #          species == "negundo"
   #        ) %>%
-  #filter(species == "negundo") %>% 
-  filter(NAB_station == "Springfield") %>%
-  # filter(latitude > (40.7 -3) & latitude < (40.7 + 3)) %>% 
-  # filter(longitude > (-74.3 -3) & longitude < (-74.3 + 3)) %>% 
-  # 
-  filter(distNAB < 300000 ) %>% #321869 = 200 miles
-  # filter(day_of_year > 50) %>%
-  # filter(day_of_year < 150) %>%
   arrange(species,  observation_date) %>%
-  group_by(species, day_of_year) %>%
-  
-  #group_by() %>%
-  # mutate(mean_flow = mean(phenophase_status),
-  #        mean_flow_m = round(na_interpolation(mean_flow),1),
-  #        mean_flow_m_ma = round(rollmean(mean_flow_m, 7, na.pad=TRUE),2))
-
+  group_by(species, day_of_year, NAB_station) %>%
   dplyr::summarize(mean_flow = mean(phenophase_status),
                    mean_prop_flow = mean(flow_prop),
                    n_obs = sum(!is.na(observation_id)))  %>% #do not include NA values in n() calculation
   filter(n_obs > 3) %>%
   ungroup()
 
-unique(acer_ny$species)
+#unique(acer_ny$species)
+#ggplot(acer_ny, aes(x = day_of_year, y = mean_flow)) + geom_point()
 
-ggplot(acer_ny, aes(x = day_of_year, y = mean_flow)) + geom_point()
-
-acer_ny %>%
-  #filter(species == "negundo") %>%
+flow_panel <- acer_ny %>%
+  filter(species != "spicatum") %>% 
   ggplot( aes(x = as.Date(day_of_year, origin = as.Date("2018-01-01")), y = mean_flow, color = species)) + #geom_point() +
   ggthemes::theme_few() + ylab("flowering (% of observations)") + xlab("") +
-  scale_x_date(limits = c(ymd("2018-03-01"), ymd("2018-05-24"))) +
+  scale_x_date(date_labels = "%b %d", limits = c(ymd("2018-03-01"), ymd("2018-05-24"))) +
   geom_line(aes(x = as.Date(day_of_year, origin = as.Date("2018-01-01")),
-                y=rollmean(mean_flow, 14, na.pad=TRUE))) +#+ facet_wrap(~species)
-  scale_color_discrete(labels = c(#expression(italic("negundo")),
-    expression(italic("Acer rubrum")),
-    expression(italic("Acer saccharum")))) +
-  ggtitle("Maples near Springfield")
+                y=rollmean(mean_flow, 14, na.pad=TRUE))) +
+  theme(legend.position=c(.09,.55),legend.text =  element_text(face="italic"))
 
 
-#comparing nab and npn data - Spearman's - using scaled pollen values
-formula <- y ~ x
-nabnpn %>%
-  #filter(sum_pol > 200) %>%
-  filter(nobs_yes_per_season > 50) %>%
-  filter(in_npn_95season == "in 95% season" & in_pol95season == "in 95% season") %>%
-  filter(taxon == "Acer") %>%
-  ggplot(aes(x = mean_prop_flow_ma * 100, y = polpct * 100)) +
-  geom_point(alpha = 0.3) + #facet_grid(site~years) + 
-  ggthemes::theme_few()  + #scale_y_log10() +
-  xlab("observed in flower (%)") + ylab("airborne pollen (% of maximum)") +
-  #geom_smooth(method = "lm") +
-  stat_cor(method = "spearman", cor.coef.name = "rho")
-
-
-pol_flow_panel_a <- nabnpn %>%
-  filter(site == "Springfield") %>%  #unique(nabnpn$site)
+#nab <- read_csv(here("data", "NPN_near_NAB_scaled_220718.csv"))
+pol_panel <- #nabnpn %>%
+  nab %>% 
+  filter(site == focal_NAB) %>%  #unique(nabnpn$site)
   filter(taxon == "Acer") %>%  #unique(nabnpn$taxon)
- # filter(sum_pol > 200) %>%
-  filter(years == 2016 ) %>%
-  filter(nobs_yes_per_season > 30) %>%
-  filter(doy > 50 & doy < 175) %>%
-  ggplot(aes(x = as.Date(doy, origin = as.Date("2018-01-01")), y = mean_prop_flow_ma * 100)) + geom_line(col = "blue") +
-  theme_few() + facet_grid(site~years) +
-  geom_point(aes(x = as.Date(doy, origin = as.Date("2018-01-01")), y = polpct * 100)) + xlab("date") +
-  scale_y_continuous(name="flowering (% of observations)", sec.axis=sec_axis(~., name="airborne pollen (% of maximum)")) +
-  theme(axis.title.y.left=element_text(color="blue"), axis.text.y.left=element_text(color="blue")) +
-  geom_line(aes(x = as.Date(doy, origin = as.Date("2018-01-01")),
+ #filter(sum_pol > 200) %>%
+  filter(years == focal_yr ) %>%
+  #filter(nobs_yes_per_season > 30) %>%
+  filter(ydays > 50 & ydays < 175) %>%
+  group_by(ydays) %>% 
+  summarize(polpct = mean(pol, na.rm = TRUE)) %>% 
+  ggplot(aes(x = as.Date(ydays, origin = as.Date("2018-01-01")), y = mean_prop_flow_ma * 100)) + #geom_line(col = "blue") +
+  theme_few() + #facet_grid(site~years) +
+  #geom_point(aes(x = as.Date(doy, origin = as.Date("2018-01-01")), y = polpct * 100)) + 
+  xlab("date") +
+  ylab("airborne pollen (% of maximum)")+
+  #scale_y_continuous(name="flowering (% of observations)", sec.axis=sec_axis(~., name="")) +
+  #theme(axis.title.y.left=element_text(color="blue"), axis.text.y.left=element_text(color="blue")) +
+  geom_line(aes(x = as.Date(ydays, origin = as.Date("2018-01-01")),
                 y= 
                   rollapply(polpct * 100, width=14, FUN=function(x) mean(x, na.rm=TRUE), by=1, partial=TRUE, fill=NA))
-            ) +#+ facet_wrap(~species)
-  scale_x_date(date_labels = "%b %d")
+            ) +
+  scale_x_date(date_labels = "%b %d", limits = c(ymd("2018-03-01"), ymd("2018-05-24")))
 
-pol_flow_panel_b <- acer_ny %>%
-  #filter(species == "negundo") %>%
-  
-  ggplot( aes(x = as.Date(day_of_year, origin = as.Date("2018-01-01")), y = mean_flow, color = species)) + #geom_point() +
-  ggthemes::theme_few() + ylab("flowering (% of observations)") + xlab("") +
-  scale_x_date(limits = c(ymd("2018-03-01"), ymd("2018-05-24"))) +
-  geom_line(aes(x = as.Date(day_of_year, origin = as.Date("2018-01-01")),
-                y=rollmean(mean_flow, 14, na.pad=TRUE))) +#+ facet_wrap(~species)
-  scale_color_discrete(labels = c(#expression(italic("negundo")),
-    expression(italic("Acer rubrum")),
-    expression(italic("Acer saccharum")))) +
-  ggtitle("Maples near Springfield")
 
-cowplot::plot_grid(pol_flow_panel_a, pol_flow_panel_b, ncol = 1)
-test <- NAB %>%  filter(NAB_station == "Springfield")
+
+cowplot::plot_grid(pol_panel, flow_panel, ncol = 1)
+
