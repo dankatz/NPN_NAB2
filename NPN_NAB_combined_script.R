@@ -991,14 +991,15 @@ unique(npn_raw$NAB_station)
 names(npn_raw)
 
 
-focal_NAB <- "Asheville"
-focal_yr <- 2020
+focal_NAB <- "Albany"
+focal_yr <- 2016
 acer_ny <- npn_raw %>%
   mutate(years = year(observation_date)) %>%
   filter(genus == "Acer") %>%
-  filter(years == focal_yr) %>% 
-  filter(distNAB < (200 * 1000)) %>% #filter by distance from NAB; needs it in meters #160934 = 100 miles, 321869 = 200 miles, 482803 = 300 miles
-   filter(tmean_dif > -2 & tmean_dif < 32) %>% #MAT filtering
+  #filter(years == focal_yr) %>% 
+  #filter(years > 2015) %>% 
+  filter(distNAB < (300 * 1000)) %>% #filter by distance from NAB; needs it in meters #160934 = 100 miles, 321869 = 200 miles, 482803 = 300 miles
+   filter(tmean_dif > -3 & tmean_dif < 3) %>% #MAT filtering
   filter(NAB_station == focal_NAB) %>%
    # filter(species == "rubrum" | #species == "saccharum" | #species == "platanoides" | species == "pensylvanicum" |
   #          species == "saccharinum" |
@@ -1016,7 +1017,10 @@ acer_ny <- npn_raw %>%
 #ggplot(acer_ny, aes(x = day_of_year, y = mean_flow)) + geom_point()
 
 flow_panel <- acer_ny %>%
-  filter(species != "spicatum") %>% 
+  # filter(species != "saccharinum") %>% 
+  # filter(species != "saccharum") %>% 
+  #filter(species != "negundo") %>%
+  #filter(species != "spicatum") %>%
   ggplot( aes(x = as.Date(day_of_year, origin = as.Date("2018-01-01")), y = mean_flow, color = species)) + #geom_point() +
   ggthemes::theme_few() + ylab("flowering (% of observations)") + xlab("") +
   scale_x_date(date_labels = "%b %d", limits = c(ymd("2018-03-01"), ymd("2018-05-24"))) +
@@ -1031,7 +1035,7 @@ pol_panel <- #nabnpn %>%
   filter(site == focal_NAB) %>%  #unique(nabnpn$site)
   filter(taxon == "Acer") %>%  #unique(nabnpn$taxon)
  #filter(sum_pol > 200) %>%
-  filter(years == focal_yr ) %>%
+ # filter(years == focal_yr ) %>%
   #filter(nobs_yes_per_season > 30) %>%
   filter(ydays > 50 & ydays < 175) %>%
   group_by(ydays) %>% 
@@ -1053,3 +1057,22 @@ pol_panel <- #nabnpn %>%
 
 cowplot::plot_grid(pol_panel, flow_panel, ncol = 1)
 
+
+nab %>% 
+  filter(site == focal_NAB) %>% 
+  filter(taxon == "Acer") %>% 
+  ggplot(aes(x = dates, y = pol)) + geom_point() + scale_y_log10()
+
+
+npn_raw %>%
+  mutate(years = year(observation_date)) %>%
+  filter(genus == "Acer") %>%
+  #filter(years == focal_yr) %>% 
+  filter(distNAB < (300 * 1000)) %>% #filter by distance from NAB; needs it in meters #160934 = 100 miles, 321869 = 200 miles, 482803 = 300 miles
+  filter(tmean_dif > -3 & tmean_dif < 3) %>% #MAT filtering
+  filter(NAB_station == focal_NAB) %>% 
+  group_by(observation_date) %>%
+  dplyr::summarize(mean_flow = mean(phenophase_status),
+                   mean_prop_flow = mean(flow_prop),
+                   n_obs = sum(!is.na(observation_id)))  %>% #do not include NA values in n() calculation
+  ggplot(aes(x = observation_date, y = mean_flow)) + geom_point() 
