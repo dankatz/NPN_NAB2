@@ -334,6 +334,35 @@ mean(abs(qu_fit_lm$residuals)) #mean absolute error
 # qu_tmean_predicted_doy <- tmean_rast2 * qu_fit$coefficients[2] + qu_fit$coefficients[1]
 # raster::plot(qu_tmean_predicted_doy)
 
+### Fig SI X: For each sp, spring temperature vs days open Quercus flowers were recorded #####################################################
+xlab <- "spring temperature (°C)"
+npn_active_flow %>% filter(genus == "Quercus") %>% #filter(species == "rubra" | species == "velutina" | species == "alba" | species == "palustris") %>% 
+  filter(longitude < -60 & longitude > -90) %>% 
+  filter(day_of_year < 181) %>% 
+  filter(flow_prop != 0) %>% #change to >0 to exclude the observations where flowering intensity wasn't recorded (i.e., 2009 - 2011)
+  ggplot(aes(x = tmean_jan_apr, y = as.Date(day_of_year, origin = as.Date("2018-01-01")), color = species)) + geom_point(alpha = 0.1) + ggthemes::theme_few() +
+  facet_wrap(~genus) + 
+  #scale_color_viridis_c() + 
+  #facet_wrap(~species) +
+  geom_smooth(method = "lm", se = FALSE) + 
+  xlab(xlab) + ylab("flowering observed (date)") + scale_y_date(date_breaks = "1 month", date_labels =  "%b") +
+  #stat_regline_equation(label.y = as.Date(180, origin = as.Date("2018-01-01")), aes(label = ..eq.label..), label.x = 15) +
+  stat_cor(aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~")), label.y = as.Date(185, origin = as.Date("2018-01-01")), label.x = 15)
+
+#Quercus regression
+npn_active_flow_Qu <- npn_active_flow %>% filter(genus == "Quercus") %>% #filter(species == "rubrum") %>% 
+  filter(longitude < -60 & longitude > -90) %>% 
+  filter(day_of_year < 181) %>% 
+  filter(flow_prop != 0)  #change to >0 to exclude the observations where flowering intensity wasn't recorded (i.e., 2009 - 2011)
+qu_fit_lm <- lm( day_of_year ~ tmean_jan_apr, data = npn_active_flow_Qu)
+qu_fit <- summary(qu_fit_lm)
+
+mean(abs(qu_fit_lm$residuals)) #mean absolute error
+
+# qu_tmean_predicted_doy <- tmean_rast2 * qu_fit$coefficients[2] + qu_fit$coefficients[1]
+# raster::plot(qu_tmean_predicted_doy)
+
+
 ###SI 2: map residuals for Quercus flowering ~ spring temperature ================================================================================
 npn_active_flow_Qu <- npn_active_flow_Qu  %>% 
   mutate(residuals = qu_fit$residuals,
