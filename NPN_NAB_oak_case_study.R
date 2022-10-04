@@ -307,13 +307,35 @@ nab <- left_join(nab, spring_temp_site_yr_nab)
 
 
 ### Fig 2: spring temperature vs days open Quercus flowers were recorded #####################################################
-xlab <- "spring temperature (°C)"
+# what if we remove all obs that are >3.5 MAD?
+# doy_mean <- npn_active_flow %>% filter(genus == "Quercus") %>% #filter(species == "rubra" | species == "velutina" | species == "alba" | species == "palustris") %>% 
+#   filter(longitude < -60 & longitude > -90) %>% 
+#   filter(day_of_year < 181) %>% 
+#   filter(flow_prop != 0) %>% #change to >0 to exclude the observations where flowering intensity wasn't recorded (i.e., 2009 - 2011)
+#   summarize(doy_mean = median(day_of_year))
+# 
+# test <- npn_active_flow %>% filter(genus == "Quercus") %>% #filter(species == "rubra" | species == "velutina" | species == "alba" | species == "palustris") %>% 
+#   filter(longitude < -60 & longitude > -90) %>% 
+#   filter(day_of_year < 181) %>% 
+#   filter(flow_prop != 0) %>% #change to >0 to exclude the observations where flowering intensity wasn't recorded (i.e., 2009 - 2011)
+#   rowwise() %>%  mutate(doy_mad = as.numeric(abs(doy_mean - day_of_year))) %>% ungroup()
+# 
+# doy_mean + median(as.numeric(test$doy_mad)) * 3.5
+# doy_mean - median(as.numeric(test$doy_mad)) * 3.5
+# hist(test$doy_mad)
+
+
+
+xlab <- "winter/spring temperature (°C)"
 npn_active_flow %>% filter(genus == "Quercus") %>% #filter(species == "rubra" | species == "velutina" | species == "alba" | species == "palustris") %>% 
   filter(longitude < -60 & longitude > -90) %>% 
   filter(day_of_year < 181) %>% 
+  #filter(flow_prop > 0) %>% 
+#  filter(day_of_year < 173) %>% 
+ # filter(day_of_year > 81) %>% 
   filter(flow_prop != 0) %>% #change to >0 to exclude the observations where flowering intensity wasn't recorded (i.e., 2009 - 2011)
   ggplot(aes(x = tmean_jan_apr, y = as.Date(day_of_year, origin = as.Date("2018-01-01")))) + geom_point(alpha = 0.1) + ggthemes::theme_few() +
-  facet_wrap(~genus) + 
+  #facet_wrap(~genus) + 
   #scale_color_viridis_c() + 
   #facet_wrap(~species) +
   geom_smooth(method = "lm", se = FALSE) + 
@@ -328,13 +350,13 @@ npn_active_flow_Qu <- npn_active_flow %>% filter(genus == "Quercus") %>% #filter
   filter(flow_prop != 0)  #change to >0 to exclude the observations where flowering intensity wasn't recorded (i.e., 2009 - 2011)
 qu_fit_lm <- lm( day_of_year ~ tmean_jan_apr, data = npn_active_flow_Qu)
 qu_fit <- summary(qu_fit_lm)
-
+qu_fit
 mean(abs(qu_fit_lm$residuals)) #mean absolute error
 
 # qu_tmean_predicted_doy <- tmean_rast2 * qu_fit$coefficients[2] + qu_fit$coefficients[1]
 # raster::plot(qu_tmean_predicted_doy)
 
-### Fig SI X: For each sp, spring temperature vs days open Quercus flowers were recorded #####################################################
+### Fig SI 5: For each sp, spring temperature vs days open Quercus flowers were recorded #####################################################
 xlab <- "spring temperature (°C)"
 npn_active_flow %>% filter(genus == "Quercus") %>% #filter(species == "rubra" | species == "velutina" | species == "alba" | species == "palustris") %>% 
   filter(longitude < -60 & longitude > -90) %>% 
@@ -346,8 +368,9 @@ npn_active_flow %>% filter(genus == "Quercus") %>% #filter(species == "rubra" | 
   #facet_wrap(~species) +
   geom_smooth(method = "lm", se = FALSE) + 
   xlab(xlab) + ylab("flowering observed (date)") + scale_y_date(date_breaks = "1 month", date_labels =  "%b") +
+  theme(legend.text = element_text(face = "italic"))
   #stat_regline_equation(label.y = as.Date(180, origin = as.Date("2018-01-01")), aes(label = ..eq.label..), label.x = 15) +
-  stat_cor(aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~")), label.y = as.Date(185, origin = as.Date("2018-01-01")), label.x = 15)
+ # stat_cor(aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~")), label.y = as.Date(185, origin = as.Date("2018-01-01")), label.x = 15)
 
 #Quercus regression
 npn_active_flow_Qu <- npn_active_flow %>% filter(genus == "Quercus") %>% #filter(species == "rubrum") %>% 
@@ -436,7 +459,7 @@ ggplot(NAB_NPN_quru_peak_day, aes(x = as.Date(quru_peak_day_pred, origin = as.Da
                                   y = as.Date(ydays, origin = as.Date("2018-01-01")) #, group = site
                                   
                                   )) + geom_point(aes(color = as.factor(site))) + ggthemes::theme_few() + #facet_wrap(~site) +
-  geom_smooth(method = "lm", se = FALSE) +
+  #geom_smooth(method = "lm", se = FALSE) +
   geom_abline(slope = 1, intercept = 0, lty = 2) +
   xlab("peak flowering (date)")+ ylab("peak pollen (date)") +
   scale_color_discrete(guide="none") +
@@ -444,7 +467,7 @@ ggplot(NAB_NPN_quru_peak_day, aes(x = as.Date(quru_peak_day_pred, origin = as.Da
   #                       label.x = as.Date(70, origin = as.Date("2018-01-01"))) +
   stat_cor(aes(label = paste(..r.label.., ..p.label.., sep = "~`,`~")), 
            label.y = as.Date(145, origin = as.Date("2018-01-01")), 
-           label.x = as.Date(83, origin = as.Date("2018-01-01")), cor.coef.name = "R", digits = 3)
+           label.x = as.Date(83, origin = as.Date("2018-01-01")), cor.coef.name = "r", digits = 3)
 
 
 
@@ -463,13 +486,20 @@ length(unique(NAB_NPN_quru_peak_day$site))
 #number of stations in NAB dataset
 length(unique(nab$site))
 
+#are both variables normally distributed
+hist(NAB_NPN_quru_peak_day$quru_peak_day_pred)
+shapiro.test(NAB_NPN_quru_peak_day$quru_peak_day_pred)
+
+
+hist(NAB_NPN_quru_peak_day$ydays)
+shapiro.test(NAB_NPN_quru_peak_day$ydays)
 
 ### SI 3: Fig 3 by site  #############################################################################################
 ggplot(NAB_NPN_quru_peak_day, aes(x = as.Date(quru_peak_day_pred, origin = as.Date("2018-01-01")), 
                                   y = as.Date(ydays, origin = as.Date("2018-01-01")) #, group = site
                                   
 )) + geom_point(aes(color = as.factor(site))) + ggthemes::theme_few() + facet_wrap(~site) +
-  geom_smooth(method = "lm", se = FALSE) +
+  #geom_smooth(method = "lm", se = FALSE) +
   geom_abline(slope = 1, intercept = 0, lty = 2) +
   xlab("peak flowering (date)")+ ylab("peak pollen (date)") +
   scale_color_discrete(guide="none") +
@@ -477,7 +507,7 @@ ggplot(NAB_NPN_quru_peak_day, aes(x = as.Date(quru_peak_day_pred, origin = as.Da
   #                       label.x = as.Date(70, origin = as.Date("2018-01-01"))) +
   stat_cor(aes(label = paste(..r.label.., ..p.label.., sep = "~`,`~")), 
            label.y = as.Date(145, origin = as.Date("2018-01-01")), 
-           label.x = as.Date(83, origin = as.Date("2018-01-01")), cor.coef.name = "R", digits = 3)
+           label.x = as.Date(83, origin = as.Date("2018-01-01")), cor.coef.name = "r", digits = 3)
 
 
 ###SI 4: map residuals for Quercus flowering ~ peak pollen ================================================================================
