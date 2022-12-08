@@ -401,7 +401,7 @@ npn_raw <- read_csv(here("data", "NPN_near_NAB_220718.csv"))
 # to run the mean annual temperature cutoff loop, comment out the distance loop start and add this in
 dist_j_list <- c(50, 100, 200, 300)
 for(j in 1:4){
-dist_j <- dist_j_list[j]
+dist_j <- dist_j_list[j] #dist_j <- 100
 temp_k <- 3
 
 # #start temperature loop here
@@ -775,6 +775,18 @@ nabnpn_all_dist <- bind_rows(nabnpn_50km, nabnpn_100km, nabnpn_200km, nabnpn_300
 
 length(unique(nabnpn_all_dist$site))
 
+names(nabnpn_300km)
+
+
+
+test <- nabnpn_50km %>% filter(site == "Armonk") %>% filter(years == 2018) %>% filter(taxon == "Quercus")
+sum(test$n_obs, na.rm = TRUE)
+test %>% group_by(in_99polseason) %>% summarize(testtt = sum(n_obs, na.rm = TRUE))
+#doing a quick check on number of observations 
+
+test2 <- npn %>% filter(site == "Armonk") %>% filter(years == 2018) %>% filter(taxon == "Quercus")
+
+
 ### creating a table of correlations by taxon x site
 cor_spear_nobs <- nabnpn_all_dist %>%  
   #filter(sum_pol_season > 100) %>% 
@@ -783,7 +795,8 @@ cor_spear_nobs <- nabnpn_all_dist %>%
   filter(!is.na(mean_prop_flow_ma)) %>% 
   filter(!is.na(polpct)) %>% 
   group_by(site, taxon, years, NAB_buffer) %>% 
-  summarize(n_obs_comparison = n())
+  summarize(n_obs_comparison = n(),
+            n_obs_npn_in_season = sum(n_obs))
 
 
 cor_spear <- nabnpn_all_dist %>%  
@@ -805,7 +818,8 @@ cor_spear <- nabnpn_all_dist %>%
             tmean = mean(tmean, na.rm = TRUE),
             lat_mean = mean(lat_mean, na.rm = TRUE),
             long_mean = mean(long_mean, na.rm = TRUE),
-            distNAB_mean = mean(distNAB_mean, na.rm = TRUE)
+            distNAB_mean = mean(distNAB_mean, na.rm = TRUE),
+            n_npn_observations = mean(n_obs_npn_in_season)
   ) %>% 
   mutate(cor_spear = round(cor_spear, 2),
          cor_p_value_discrete = case_when(cor_p_value >= 0.05 ~ "ns",
@@ -1076,3 +1090,20 @@ npn_raw %>%
                    mean_prop_flow = mean(flow_prop),
                    n_obs = sum(!is.na(observation_id)))  %>% #do not include NA values in n() calculation
   ggplot(aes(x = observation_date, y = mean_flow)) + geom_point() 
+
+
+### Fig. SI x: comparison of NPN sample size versus correlation strength
+ggplot(cor_spear, aes(x = distNAB_mean/1000, y = n_npn_observations, color = as.factor(NAB_buffer))) + geom_point() + facet_wrap(~taxon, scales = "free_y") + theme_bw()
+
+filter(cor_spear, taxon == "Quercus") %>% 
+ggplot(aes(x = n_npn_observations, y = cor_spear, color = distNAB_mean/1000)) + geom_point() + theme_bw() +
+  facet_wrap(~site) + theme_bw()
+
+filter(cor_spear, taxon == "Betula") %>% 
+  ggplot(aes(x = distNAB_mean/1000, y = n_npn_observations, color = cor_spear)) + geom_point() + theme_bw() +
+   theme_bw() + scale_color_viridis() + facet_wrap(~site)
+
+filter(cor_spear, taxon == "Betula") %>% 
+  ggplot(aes(x = NAB_buffer, y = n_npn_observations, color = cor_spear)) + geom_point() + theme_bw() +
+  theme_bw() + scale_color_viridis() + facet_wrap(~site)
+
