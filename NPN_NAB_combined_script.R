@@ -802,8 +802,8 @@ cor_spear_nobs <- nabnpn_all_dist %>%
 cor_spear <- nabnpn_all_dist %>%  
   left_join(., cor_spear_nobs) %>% 
   filter(sum_pol_season > 100) %>% 
-  filter(nobs_yes_per_season > 10) %>% 
-  filter(n_obs_comparison > 10) %>% 
+   filter(nobs_yes_per_season > 10) %>% #default is 10
+   filter(n_obs_comparison > 10) %>% #default is 10
   #filter(in_npn_95season == "in 95% season" & in_pol95season == "in 95% season") %>% 
   filter(in_99polseason == "in 99% season") %>% 
   filter(!is.na(mean_prop_flow_ma)) %>% 
@@ -865,7 +865,7 @@ ggplot(cor_spear, aes(x = as.factor(NAB_buffer), y = cor_spear)) +
 
 ggsave(filename = "Fig_3.jpg", width = 20, height = 15, units = "cm", dpi = 300, scale = 1.25)
 
-# write_csv(cor_spear, here("data", "cor_nabnpn_alldistbuffers_2c_all_seasons_220921.csv"))
+# write_csv(cor_spear, here("data", "cor_nabnpn_alldistbuffers_2c_all_seasons_221209.csv"))
 # cor_spear <- read_csv(here("data", "cor_nabnpn_allbuffers_all_seasons_220719.csv"))
 #some stats for results section
 cor_spear %>%  
@@ -1092,18 +1092,46 @@ npn_raw %>%
   ggplot(aes(x = observation_date, y = mean_flow)) + geom_point() 
 
 
-### Fig. SI x: comparison of NPN sample size versus correlation strength
-ggplot(cor_spear, aes(x = distNAB_mean/1000, y = n_npn_observations, color = as.factor(NAB_buffer))) + geom_point() + facet_wrap(~taxon, scales = "free_y") + theme_bw()
+### Fig. SI x: comparison of buffer distance to temperature and NPN sample size versus correlation strength
+ggplot(cor_spear, aes(x = distNAB_mean/1000, y = n_npn_observations, color = as.factor(NAB_buffer))) + geom_point() + 
+  ggthemes::theme_few() + xlab("mean distance between observation and NAB station (km)") +
+  scale_color_discrete(name = "buffer distance") +
+  ylab("number of phenology observations (n)") #facet_wrap(~NAB_buffer, scales = "free_y") 
 
-filter(cor_spear, taxon == "Quercus") %>% 
-ggplot(aes(x = n_npn_observations, y = cor_spear, color = distNAB_mean/1000)) + geom_point() + theme_bw() +
-  facet_wrap(~site) + theme_bw()
-
-filter(cor_spear, taxon == "Betula") %>% 
-  ggplot(aes(x = distNAB_mean/1000, y = n_npn_observations, color = cor_spear)) + geom_point() + theme_bw() +
-   theme_bw() + scale_color_viridis() + facet_wrap(~site)
-
-filter(cor_spear, taxon == "Betula") %>% 
-  ggplot(aes(x = NAB_buffer, y = n_npn_observations, color = cor_spear)) + geom_point() + theme_bw() +
-  theme_bw() + scale_color_viridis() + facet_wrap(~site)
-
+ggplot(cor_spear, aes(x = as.factor(NAB_buffer), y = tmean_dif)) + geom_boxplot(outlier.shape = NA, lwd = 1.3) + 
+  geom_jitter(width = 0.1, alpha = 0.3, color = "gray10") + ggthemes::theme_few() + #+ facet_wrap(~taxon, scales = "free_y")
+  xlab("buffer distance (km)") + ylab("mean temperature difference (°C)") 
+#   
+# cor_spear %>% mutate(site_years = paste(site, years)) %>% 
+# ggplot(aes(x = as.factor(NAB_buffer), y = n_npn_observations,  color = cor_spear, group = site_years)) + 
+#   geom_line(alpha = 0.4) + facet_wrap(~taxon_labs) + ggthemes::theme_few() +scale_color_viridis()
+# 
+# 
+# filter(cor_spear, taxon == "Acer") %>% 
+#   ggplot( aes(x = as.factor(NAB_buffer), y = n_npn_observations, group = years, col = cor_spear)) + geom_point() + geom_line() + theme_bw() +
+#   theme_bw() + scale_color_viridis() + facet_wrap(~site)
+# 
+# 
+# filter(cor_spear, taxon == "Betula") %>% 
+# ggplot(aes(x = n_npn_observations, y = cor_spear, color = distNAB_mean/1000)) + geom_point() + theme_bw() +
+#   facet_wrap(~site) + theme_bw()
+# 
+# filter(cor_spear, taxon == "Betula") %>% 
+#   ggplot(aes(x = n_npn_observations, y = cor_spear, color = NAB_buffer)) + geom_point() + theme_bw() +
+#   theme_bw() + scale_color_viridis() + geom_smooth(method = "lm")
+# 
+# filter(cor_spear, taxon == "Betula") %>% 
+#   ggplot(aes(x = distNAB_mean/1000, y = cor_spear, color = n_npn_observations)) + geom_point() + theme_bw() +
+#   theme_bw() + scale_color_viridis() + geom_smooth(method = "lm")
+# 
+# filter(cor_spear, taxon == "Betula") %>% 
+#   ggplot(aes(x = distNAB_mean/1000, y = n_npn_observations, color = cor_spear)) + geom_point() + theme_bw() +
+#    theme_bw() + scale_color_viridis() + facet_wrap(~site)
+# 
+# filter(cor_spear, taxon == "Populus") %>% 
+#   ggplot(aes(x = NAB_buffer, y = n_npn_observations, color = cor_spear)) + geom_point() + theme_bw() +
+#   theme_bw() + scale_color_viridis() + facet_wrap(~site)
+# 
+# cor_spear_subset <- filter(cor_spear, taxon == "Quercus")
+# fit <- glm(cor_spear ~ n_npn_observations + site +  as.factor(years) + as.factor(NAB_buffer), data = cor_spear_subset)
+# summary(fit)
