@@ -286,8 +286,14 @@ test <- NPN_near_NAB2 %>%
   #filter(genus == "Quercus") %>%   
   summarize(n = n())
 
-
-
+#a manual check
+fig_site <- "Sylvania"
+fig_taxon <- "Acer"
+fig_year <- 2015
+manual_checks <- NPN_near_NAB2 %>% filter(NAB_station == fig_site & genus == fig_taxon & yr == fig_year) %>%  
+  arrange(observation_date)
+ggplot(manual_checks, aes(x = longitude, y = latitude, color = tmean_dif)) + geom_point()
+mean(manual_checks$dist[manual_checks$phenophase_status == 1])
 
 ### load in and prepare NAB data ###############################################################
 #NAB data were assembled in this script: #C:/Users/danka/Box/texas/NAB/extract_pollen_data_from_NPNdata220308.R
@@ -715,9 +721,9 @@ panel_b <- nabnpn %>%
 
 # panel C: Atlanta Quercus time series 2014
 #add another example here
-fig_site <- "Atlanta"
-fig_taxon <- "Quercus"
-fig_year <- 2017
+fig_site <- "Sylvania"
+fig_taxon <- "Acer"
+fig_year <- 2015
 fig_seasons <- nabnpn %>% filter(site == fig_site & taxon == fig_taxon & years == fig_year) %>%  
   arrange(taxon, site, years, dates)
 #fig_season_pol_start <- fig_seasons$dates[min(which (fig_seasons$in_pol95season == "in 95% season"))]
@@ -751,7 +757,7 @@ panel_c <- nabnpn %>%
   geom_point(aes(x = dates, y = polpct * 100), alpha = 0.3) + xlab("date") + 
   scale_y_continuous(name="flowering (% of observations)", sec.axis=sec_axis(~., name="airborne pollen (% of maximum)")) +
   theme(axis.title.y.left=element_text(color="blue"), axis.text.y.left=element_text(color="blue")) +
-  annotate("text", x= ymd_hms("2017/4/26 00:00:00"), y= 98, label= paste0("\U03C1 = ", round(panel_c_cor, 2))) +
+  annotate("text", x= ymd_hms("2015/4/26 00:00:00"), y= 98, label= paste0("\U03C1 = ", round(panel_c_cor, 2))) +
   #scale_x_date(date_labels = "%b %d") +
   # geom_segment(x = fig_season_pol_start, xend = fig_season_pol_end,#pollen 95% season line
   #              y = -2, yend = -2, col = "black", lwd = 2)  +
