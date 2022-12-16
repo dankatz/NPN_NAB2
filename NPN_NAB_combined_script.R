@@ -821,6 +821,7 @@ cor_spear <- nabnpn_all_dist %>%
             cor_p_value = cor.test(mean_prop_flow_ma, polpct, method = "spearman", use="complete.obs")$p.value,
             unique_observers = mean(unique_observers),
             tmean_dif = mean(tmean_dif, na.rm = TRUE),
+            tmean_dif_abs = mean(abs(tmean_dif), na.rm = TRUE),
             tmean = mean(tmean, na.rm = TRUE),
             lat_mean = mean(lat_mean, na.rm = TRUE),
             long_mean = mean(long_mean, na.rm = TRUE),
@@ -859,6 +860,7 @@ cor_spear <- nabnpn_all_dist %>%
 # 
 # ggsave(filename = "Fig_3.jpg", width = 20, height = 15, units = "cm", dpi = 300, scale = 1.25)
 
+#original version of Fig 3 with all buffer distances
 ggplot(cor_spear, aes(x = as.factor(NAB_buffer), y = cor_spear)) + 
   geom_hline(yintercept = 0, lty = 2) +
   geom_boxplot(outlier.shape = NA) + geom_jitter(aes(color = cor_p_value_discrete), width = 0.1, alpha = .85) + ggthemes::theme_few() +
@@ -868,6 +870,19 @@ ggplot(cor_spear, aes(x = as.factor(NAB_buffer), y = cor_spear)) +
   theme(strip.text.x = ggtext::element_markdown()) +
   facet_wrap(~taxon_labs2)
 
+#fig 3, version with just 200 km
+cor_spear %>% 
+  filter(NAB_buffer == 200) %>% 
+  ggplot(aes(x = taxon_labs2, y = cor_spear)) + 
+  geom_hline(yintercept = 0, lty = 2) +
+  geom_boxplot(outlier.shape = NA) + geom_jitter(aes(color = cor_p_value_discrete), width = 0.1, alpha = .85) + ggthemes::theme_few() +
+  ylab("Spearman correlation between airborne pollen and flowering") +
+  scale_color_manual(values = c("gray50", "blue4"), name = "") +
+  xlab("distance from NAB station (km)") +
+  scale_x_discrete(guide = guide_axis(angle = 90)) + theme( axis.text.x = ggtext::element_markdown())
+
+#  theme(strip.text.x = ggtext::element_markdown(), axis.text.x = element_text(angle = 60, vjust = 1, hjust=0.3)) 
+getwd()
 
 ggsave(filename = "Fig_3.jpg", width = 20, height = 15, units = "cm", dpi = 300, scale = 1.25)
 
@@ -1098,15 +1113,62 @@ npn_raw %>%
   ggplot(aes(x = observation_date, y = mean_flow)) + geom_point() 
 
 
-### Fig. SI x: comparison of buffer distance to temperature and NPN sample size versus correlation strength
-ggplot(cor_spear, aes(x = distNAB_mean/1000, y = n_npn_observations, color = as.factor(NAB_buffer))) + geom_point() + 
-  ggthemes::theme_few() + xlab("mean distance between observation and NAB station (km)") +
-  scale_color_discrete(name = "buffer distance") +
-  ylab("number of phenology observations (n)") #facet_wrap(~NAB_buffer, scales = "free_y") 
+### Fig. SI x: comparison of buffer distance to temperature and NPN sample size versus correlation strength ######################
+# old version of Fig. SI 3 that is a scatterplot
+# ggplot(cor_spear, aes(x = distNAB_mean/1000, y = n_npn_observations, color = as.factor(NAB_buffer))) + geom_point() + 
+#   ggthemes::theme_few() + xlab("mean distance between observation and NAB station (km)") +
+#   scale_color_discrete(name = "buffer distance") +
+#   ylab("number of phenology observations (n)") #facet_wrap(~NAB_buffer, scales = "free_y") 
 
-ggplot(cor_spear, aes(x = as.factor(NAB_buffer), y = tmean_dif)) + geom_boxplot(outlier.shape = NA, lwd = 1.3) + 
+# run Fig 3 section first to generate cor_spear!!
+
+
+#new version of Fig. SI 3: histograms of number of obs in a taxon x site x year comparison at each buffer size
+#main point: more comparisons possible at higher buffer size, but for most comparisons n ~ 100 - 300
+ggplot(cor_spear, aes(x = n_npn_observations, color = as.factor(NAB_buffer))) + geom_freqpoly(lwd = 1) + 
+  ggthemes::theme_few() + xlab("number of observations included in comparison") +
+  scale_color_viridis_d(name = "buffer distance (km)", direction = -1) + 
+  theme(legend.position = c(0.7,0.7))
+ggsave(filename = "Fig_SI_3_221216.jpg", width = 15, height = 15, units = "cm", dpi = 300, scale = 1.25)
+
+
+### Fig SI 4: difference in mean annual temperature between NPN obs and NAB station
+#as buffer distance increased, the environment becomes more variable
+library(rstatix)
+
+# using a games_howell nonparametric test because variances aren't equal and sample sizes aren't equal 
+#(otherwise pretty similar to Tukey)
+#https://rpkgs.datanovia.com/rstatix/reference/games_howell_test.html
+cor_spear %>% 
+  games_howell_test(tmean_dif~NAB_buffer)
+
+panel_a <- 
+  ggplot(cor_spear, aes(x = as.factor(NAB_buffer), y = tmean_dif)) + geom_boxplot(outlier.shape = NA, lwd = 1.3) + 
   geom_jitter(width = 0.1, alpha = 0.3, color = "gray10") + ggthemes::theme_few() + #+ facet_wrap(~taxon, scales = "free_y")
-  xlab("buffer distance (km)") + ylab("mean temperature difference (°C)") 
+  xlab("buffer distance (km)") + ylab("mean temperature difference (°C)") +
+  annotate("text", x = 1, y = 3.2, label = "A") + #manually adding in letters for sig, could automate in multcompView, but this is faster
+  annotate("text", x = 2, y = 3.2, label = "A") + 
+  annotate("text", x = 3, y = 3.2, label = "B") + 
+  annotate("text", x = 4, y = 3.2, label = "C") 
+
+#as buffer distance increased, the environment becomes more variable
+cor_spear %>% 
+  games_howell_test(tmean_dif_abs~NAB_buffer)
+
+panel_b <- ggplot(cor_spear, aes(x = as.factor(NAB_buffer), y = tmean_dif_abs)) + geom_boxplot(outlier.shape = NA, lwd = 1.3) + 
+  geom_jitter(width = 0.1, alpha = 0.3, color = "gray10") + ggthemes::theme_few() + #+ facet_wrap(~taxon, scales = "free_y")
+  xlab("buffer distance (km)") + ylab("mean absolute temperature difference (°C)") +
+  annotate("text", x = 1, y = 3.2, label = "A") + #manually adding in letters for sig
+  annotate("text", x = 2, y = 3.2, label = "A") + 
+  annotate("text", x = 3, y = 3.2, label = "B") + 
+  annotate("text", x = 4, y = 3.2, label = "B") 
+
+cowplot::plot_grid(panel_a, panel_b, ncol = 1, labels = c("A", "B"))
+ggsave(filename = "Fig_SI_4_221216.jpg", width = 15, height = 20, units = "cm", dpi = 300, scale = 1.25)
+
+
+
+
 #   
 # cor_spear %>% mutate(site_years = paste(site, years)) %>% 
 # ggplot(aes(x = as.factor(NAB_buffer), y = n_npn_observations,  color = cor_spear, group = site_years)) + 
