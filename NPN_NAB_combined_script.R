@@ -405,17 +405,17 @@ npn_raw <- read_csv(here("data", "NPN_near_NAB_220718.csv"))
 
 # #start distance loop here
 # to run the mean annual temperature cutoff loop, comment out the distance loop start and add this in
-dist_j_list <- c(50, 100, 200, 300)
-for(j in 1:4){
-dist_j <- dist_j_list[j] #dist_j <- 100
-temp_k <- 3
+# dist_j_list <- c(50, 100, 200, 300)
+# for(j in 1:4){
+# dist_j <- dist_j_list[j] #dist_j <- 100
+# temp_k <- 3
 
 # #start temperature loop here
 # #to run the mean annual temperature cutoff loop, comment out the distance loop start and add this in
-# MAT_k_list <- c(0.5, 1, 2, 3)
-# for(k in 1:4){
-# temp_k <- MAT_k_list[k]
-# dist_j <- 300
+MAT_k_list <- c(0.5, 1, 2, 3)
+for(k in 1:4){
+temp_k <- MAT_k_list[k]
+dist_j <- 200
 
 npn <- npn_raw %>% 
   filter(distNAB < (dist_j * 1000)) %>% #filter by distance from NAB; needs it in meters #160934 = 100 miles, 321869 = 200 miles, 482803 = 300 miles
@@ -609,17 +609,17 @@ nabnpn <- nabnpn %>% mutate(taxon_labs = case_when(taxon == "Cupressaceae" ~ "Cu
 
 
 #comment/uncomment this to correspond with either the temperature or distance loop
-file_save_name = paste0("nabnpn_", dist_j, "km_2c_220921.csv")
-write_csv(nabnpn, here("data", file_save_name))
-
-# file_save_name = paste0("nabnpn_", temp_k, "_c_dist_500km_220921.csv")
+# file_save_name = paste0("nabnpn_", dist_j, "km_2c_220921.csv")
 # write_csv(nabnpn, here("data", file_save_name))
+
+file_save_name = paste0("nabnpn_", temp_k, "_c_dist_500km_220921.csv")
+write_csv(nabnpn, here("data", file_save_name))
 
 }#end distance OR temperature loop
 beepr::beep(sound  = "treasure")
 
 ### Fig 2: examples of time series and correlation #############################################################
-nabnpn <- read_csv(here("data", "nabnpn_300km_2c_220921.csv")) %>% mutate(NAB_buffer = 300)
+nabnpn <- read_csv(here("data", "nabnpn_200km_2c_220921.csv")) %>% mutate(NAB_buffer = 300)
 
 # panel A: Armonk Quercus time series 2018
 #add another example here
@@ -902,10 +902,10 @@ cor_nabnpn_all_buffers <- cor_spear %>%
 # cor_nabnpn_all_buffers <- read_csv(here("data", "cor_nabnpn_allbuffers_summary_220719.csv"))
 
 ### Fig. 4: overall comparisons  of correlation by temperature cutoff by taxon ##############################################################################
-nabnpn_0.5c  <- read_csv(here("data", "nabnpn_0.5_c_dist_300km_220921.csv")) %>% mutate(temper_buffer = 0.5)
-nabnpn_1c <- read_csv(here("data", "nabnpn_1_c_dist_300km_220921.csv")) %>% mutate(temper_buffer = 1)
-nabnpn_2c <- read_csv(here("data", "nabnpn_2_c_dist_300km_220921.csv")) %>% mutate(temper_buffer = 2)
-nabnpn_3c <- read_csv(here("data", "nabnpn_3_c_dist_300km_220921.csv")) %>% mutate(temper_buffer = 3)
+nabnpn_0.5c  <- read_csv(here("data", "nabnpn_0.5_c_dist_200km_220921.csv")) %>% mutate(temper_buffer = 0.5)
+nabnpn_1c <- read_csv(here("data", "nabnpn_1_c_dist_200km_220921.csv")) %>% mutate(temper_buffer = 1)
+nabnpn_2c <- read_csv(here("data", "nabnpn_2_c_dist_200km_220921.csv")) %>% mutate(temper_buffer = 2)
+nabnpn_3c <- read_csv(here("data", "nabnpn_3_c_dist_200km_220921.csv")) %>% mutate(temper_buffer = 3)
 
 nabnpn_all_temp <- bind_rows(nabnpn_0.5c, nabnpn_1c, nabnpn_2c, nabnpn_3c)
 length(unique(nabnpn_all_temp$site))
@@ -988,7 +988,7 @@ ggplot(cor_spear, aes(x = as.factor(temper_buffer), y = cor_spear)) +
   facet_wrap(~taxon_labs2)
 
 
-ggsave(filename = "Fig_3_temp.jpg", width = 20, height = 15, units = "cm", dpi = 300, scale = 1.25)
+ggsave(filename = "Fig_3_temp_221219.jpg", width = 20, height = 15, units = "cm", dpi = 300, scale = 1.25)
 
 
 #some stats for results section
