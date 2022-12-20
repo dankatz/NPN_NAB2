@@ -612,7 +612,7 @@ nabnpn <- nabnpn %>% mutate(taxon_labs = case_when(taxon == "Cupressaceae" ~ "Cu
 # file_save_name = paste0("nabnpn_", dist_j, "km_2c_220921.csv")
 # write_csv(nabnpn, here("data", file_save_name))
 
-file_save_name = paste0("nabnpn_", temp_k, "_c_dist_500km_220921.csv")
+file_save_name = paste0("nabnpn_", temp_k, "_c_dist_200km_220921.csv")
 write_csv(nabnpn, here("data", file_save_name))
 
 }#end distance OR temperature loop
