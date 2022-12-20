@@ -1,8 +1,13 @@
-### NPN-NAB comparison manuscript  ####################################################################
-# Current project participants:
-# Liz Vogt, Theresa Crimmins, Arie Managan, Claudia Brown, Dan Dalan, Kai Zhu, Yiluan Song, and Dan Katz
-# This script includes data assembly, analysis, and visualization 
-# This version focuses on describing NPN and then has a case study of eastern oaks 
+### Observations from the USA National Phenology Network can be leveraged to model airborne pollen  ###########
+# Aerobiologia, 2022 
+# Daniel Katz, Elizabeth Vogt, Arie Manangan, Claudia Brown, Dan Dalan, Kai Zhu, Yiluan Song, and Theresa Crimmins
+# 
+# For questions about the manuscript or script, please contact Dan Katz: dankatz@cornell.edu
+#
+# This script includes data assembly, analysis, and visualization. A separate branch ('direct_NAB_NPN_comparison') was created for an offshoot of the 
+# analysis that is now being developed as a separate analysis.
+# Note: This analysis includes proprietary data from the National Allergy Bureau; only the NPN portion is fully reproducible without access to that data
+
 
 ### set up working environment #######################################################################
 library(dplyr)
@@ -13,7 +18,7 @@ library(sf)
 library(geosphere)
 library(prism)
 library(readr)
-library(here) #install.packages("Rtools")
+library(here) 
 library(purrr)
 library(ggplot2)
 library(imputeTS)
@@ -23,10 +28,13 @@ library(viridis)
 library(ggthemes)
 library(ggpubr)
 
-#rm(list=ls())
-
 here::i_am("NPN_NAB_combined_script.R") #using the 'here' package for consistent file structure system
+# This script was developed in:
+# R version 4.1.3 (2022-03-10)
+# Platform: x86_64-w64-mingw32/x64 (64-bit)
+# Running under: Windows 10 x64 (build 19042)
 
+sessionInfo(package = NULL)
 ### Prepare NPN data #################################################################################
 ### select top anemophilous taxa from NPN -----------------------------------------
 npn_plants <- npn_species(kingdom = "Plantae")
@@ -57,7 +65,6 @@ misc_species_list <- c(935, #Myrica
 )
 
 #herbaceous angiosperms 
-#filter(npn_plants, genus == "Tilia")
 herbaceous_species_list <-c(
   441, 1885, 435, 1889, 1005, 1618, #Amaranthaceae 
   145,788,146, #Ambrosia
@@ -90,7 +97,8 @@ if(exists("npn_direct") == FALSE){ #does the npn_direct object exist? If not, do
     request_source = 'Daniel Katz, Cornell and/or Theresa Crimmins',
     species_ids = list_all_focal_taxa,
     years = c(as.character(2009:2021)), #years to include
-    phenophase_ids = c(501, 502,495, 503), #angiosperms: 501 == "Open flowers", 502 == "Pollen release (flowers)" #conifers: 495 ==  503 ==
+    phenophase_ids = c(501, 502, 495, 503), #angiosperms: 501 == "Open flowers", 502 == "Pollen release (flowers)" 
+                                            #conifers: 495 ==  open pollen cones, 503 == pollen release from cones
     additional_fields = c("Observed_Status_Conflict_Flag", "partner_group")
   )
   write_csv(npn_direct, here("data", "NPN_220620.csv"))
@@ -119,7 +127,7 @@ hi_conflict[is.na(hi_conflict)] <- 0
 
 # calculate percentage of conflict records
 hi_conflict$percentage <- hi_conflict$nflag/hi_conflict$n*100
-# un-comment the next two lines for a histogram of conflicts per site... 
+# un-comment the next two lines for a histogram of conflicts per site
 # hist(hi_conflict$percentage, xlab="Percentage conflict records", 
 #     ylab="Number of sites", main="Frequency of conflicts per site")
 
@@ -158,7 +166,7 @@ hist(npn_active_flow$flow_prop)
 #npn_active_flow %>% group_by(yr) %>% summarize(n = n())
 
 #number of observations over time by genus
-#test <- npn_active_flow %>% group_by(genus, yr) %>% summarize(n = n())
+#npn_active_flow %>% group_by(genus, yr) %>% summarize(n = n())
 
 #number of observations by genus
 npn_active_flow %>% #filter(flow_prop != 0) %>% 
@@ -178,7 +186,7 @@ npn_pol %>%
   group_by(phenophase_status) %>% 
   dplyr::summarize(n_obs = n())
 
-#SI 1: total observations per taxa
+### SI 1: total observations per taxa ----------------------------------------------------------
 SI_1_phenophase_observed <- npn_flow %>% group_by(genus, species) %>% 
   summarize(n_obs_flow_looked_for = n())
 
@@ -258,10 +266,6 @@ nab <- left_join(date_station_grid, nab_raw) %>%
   mutate(years = year(dates),
          ydays = yday(dates)) 
 
-# nab <- nab %>% #filter(taxon == "Ulmus") %>% 
-#   mutate(taxon = case_when(taxon == "Ulmus" & ydays > 175 & site != "Santa Barbara" ~ "Ulmus_fall", 
-#                            TRUE ~ taxon))
-
 nab_season_obs_summary <- nab %>% group_by(site, taxon, years) %>% 
         filter(!is.na(pol)) %>% 
         filter(pol != 0) %>% 
@@ -305,27 +309,12 @@ nab <- left_join(nab, spring_temp_site_yr_nab)
 
 
 
+### Fig 1: Nature's Notebook interface and map of observations #####################################################
+# This figure was made by Theresa Crimmins and is not included in this script. 
+# The re-made publication version of the figure is saved here:
+# "C:\Users\dsk273\Box\writing\NAB_NPN short communication\Fig1_photopea_221219.psd"
 
 ### Fig 2: spring temperature vs days open Quercus flowers were recorded #####################################################
-# what if we remove all obs that are >3.5 MAD?
-# doy_mean <- npn_active_flow %>% filter(genus == "Quercus") %>% #filter(species == "rubra" | species == "velutina" | species == "alba" | species == "palustris") %>% 
-#   filter(longitude < -60 & longitude > -90) %>% 
-#   filter(day_of_year < 181) %>% 
-#   filter(flow_prop != 0) %>% #change to >0 to exclude the observations where flowering intensity wasn't recorded (i.e., 2009 - 2011)
-#   summarize(doy_mean = median(day_of_year))
-# 
-# test <- npn_active_flow %>% filter(genus == "Quercus") %>% #filter(species == "rubra" | species == "velutina" | species == "alba" | species == "palustris") %>% 
-#   filter(longitude < -60 & longitude > -90) %>% 
-#   filter(day_of_year < 181) %>% 
-#   filter(flow_prop != 0) %>% #change to >0 to exclude the observations where flowering intensity wasn't recorded (i.e., 2009 - 2011)
-#   rowwise() %>%  mutate(doy_mad = as.numeric(abs(doy_mean - day_of_year))) %>% ungroup()
-# 
-# doy_mean + median(as.numeric(test$doy_mad)) * 3.5
-# doy_mean - median(as.numeric(test$doy_mad)) * 3.5
-# hist(test$doy_mad)
-
-
-
 xlab <- "winter—spring temperature (°C)"
 npn_active_flow %>% filter(genus == "Quercus") %>% #filter(species == "rubra" | species == "velutina" | species == "alba" | species == "palustris") %>% 
   filter(longitude < -60 & longitude > -90) %>% 
@@ -364,20 +353,19 @@ mean(abs(qu_fit_lm$residuals)) #mean absolute error
 # qu_tmean_predicted_doy <- tmean_rast2 * qu_fit$coefficients[2] + qu_fit$coefficients[1]
 # raster::plot(qu_tmean_predicted_doy)
 
-### Fig SI 5: For each sp, spring temperature vs days open Quercus flowers were recorded #####################################################
+### Fig SI 5: For each oak species, spring temperature vs flowering observations #####################################################
 xlab <- "winter—spring temperature (°C)"
 npn_active_flow %>% filter(genus == "Quercus") %>% #filter(species == "rubra" | species == "velutina" | species == "alba" | species == "palustris") %>% 
   filter(longitude < -60 & longitude > -90) %>% 
   filter(day_of_year < 181) %>% 
   filter(flow_prop != 0) %>% #change to >0 to exclude the observations where flowering intensity wasn't recorded (i.e., 2009 - 2011)
   ggplot(aes(x = tmean_jan_apr, y = as.Date(day_of_year, origin = as.Date("2018-01-01")), color = species)) + geom_point(alpha = 0.1) + ggthemes::theme_few() +
-  #scale_color_viridis_c() + 
-  #facet_wrap(~species) +
   geom_smooth(method = "lm", se = FALSE) + 
   xlab(xlab) + ylab("flowering observed (date)") + scale_y_date(date_breaks = "1 month", date_labels =  "%b") +
   theme(legend.text = element_text(face = "italic"))
+  #facet_wrap(~species) +
   #stat_regline_equation(label.y = as.Date(180, origin = as.Date("2018-01-01")), aes(label = ..eq.label..), label.x = 15) +
- # stat_cor(aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~")), label.y = as.Date(185, origin = as.Date("2018-01-01")), label.x = 15)
+  #stat_cor(aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~")), label.y = as.Date(185, origin = as.Date("2018-01-01")), label.x = 15)
 
 #Quercus regression
 npn_active_flow_Qu <- npn_active_flow %>% filter(genus == "Quercus") %>% #filter(species == "rubrum") %>% 
@@ -407,7 +395,6 @@ ggplot(us_boundary) +   geom_sf(data = us_boundary, colour = "black", fill = NA)
   geom_jitter(aes(x = longitude, y = latitude , col = resid_cat),# size = pollen),#col = hilo2), pollen / max_p
               data = npn_active_flow_Qu, alpha = .7, size = 3, width = 0.2, height = 0.2)  + 
    scale_color_distiller(palette = "Spectral", name = "residuals (days)", breaks = c(-28, -21, -14, -7, 7, 14, 21, 28), labels = c("< -28", "-21", "-14", "-7", "7", "14", "21", ">28")) +
-  #scale_color_continuous2(low = "blue", high = "red", mid = "white", name = "residual (days)") + 
   xlab("") + ylab("") + #theme_few() + 
   theme(panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank(),
@@ -424,10 +411,8 @@ npn_active_flow %>% filter(genus == "Quercus") %>%
   filter(longitude < -60 & longitude > -90) %>%  filter(day_of_year < 181) %>% filter(flow_prop != 0) %>% group_by(species) %>% summarize(n = n())
 
 #is the strength of the association different in the north vs south?
-
-
 npn_active_flow_Qu <- npn_active_flow %>% filter(genus == "Quercus") %>% #filter(species == "rubrum") %>% 
-  filter(latitude < 40) %>% 
+  filter(latitude < 40) %>% #switch this to check north vs south
   filter(longitude < -60 & longitude > -90) %>% 
   filter(day_of_year < 181) %>% 
   filter(flow_prop != 0)  #change to >0 to exclude the observations where flowering intensity wasn't recorded (i.e., 2009 - 2011)
@@ -439,7 +424,6 @@ summary(lm( day_of_year ~ tmean_jan_apr, data = npn_active_flow_Qu))
 
 ### Fig 3: Quercus peak doy NPN vs Quercus peak doy NAB #####################################################
 # predicted Quru peak open flow day at each NAB site
-# head(nabnpn)
 
 peak_qu_npn_pred_nab_sites_data <- nab %>% ungroup() %>% filter(taxon == "Quercus") %>% 
   select(site, taxon, years, tmean_jan_apr) %>% distinct() 
@@ -470,22 +454,17 @@ NAB_quru_peak_day <- left_join(nab, NAB_coords_not_sf) %>%
          NAs_in_window_mean = round(rollmean(NAs_in_window, 21, na.pad=TRUE),2)
   )%>% 
   slice_max(pol_m_ma, with_ties = FALSE) %>% 
-  #filter(NAs_in_window_mean < (20/21)) %>% #removing seasons where the best option was mostly NA values that were interpolated against
   filter(pol_m_ma >100)
 NAB_NPN_quru_peak_day <- left_join(NAB_quru_peak_day, peak_qu_npn_pred_nab_sites)
 
 ggplot(NAB_NPN_quru_peak_day, aes(x = as.Date(quru_peak_day_pred_fit, origin = as.Date("2018-01-01")), 
                                   xmin = as.Date(quru_peak_day_pred_lwr, origin = as.Date("2018-01-01")),
                                   xmax = as.Date(quru_peak_day_pred_upr, origin = as.Date("2018-01-01")),
-                                  y = as.Date(ydays, origin = as.Date("2018-01-01")) #, group = site
-                                  )) + 
-    geom_smooth(method = "lm", se = FALSE,  lwd =0.6, col = "skyblue3") +
+                                  y = as.Date(ydays, origin = as.Date("2018-01-01")))) + 
+  geom_smooth(method = "lm", se = FALSE,  lwd =0.6, col = "skyblue3") +
   geom_abline(slope = 1, intercept = 0, lty = 2) +
   geom_errorbarh(aes(color = as.factor(site)), alpha = 0.2, height = 0) +
   geom_point(aes(color = as.factor(site))) + ggthemes::theme_few() + 
-  
-  #facet_wrap(~site) + 
-
   xlab("modeled peak flowering (date)")+ ylab("peak pollen (date)") +
   scale_color_discrete(guide="none") +
   
@@ -500,14 +479,10 @@ ggplot(NAB_NPN_quru_peak_day, aes(x = as.Date(quru_peak_day_pred_fit, origin = a
 
 ggsave(filename = "C:/Users/dsk273/Box/Cornell/writing/NAB_NPN short communication/revision to be submitted October 22/fig3.tiff", dpi = 600, width = 119, height = 119, units = "mm")
 
-#cor.test(x = NAB_NPN_quru_peak_day$ydays, y = NAB_NPN_quru_peak_day$quru_peak_day_pred_fit, method = "pearson")
-
 fit_lm <- lm( ydays ~ quru_peak_day_pred_fit, data = NAB_NPN_quru_peak_day)
 fit <- summary(fit_lm)
 
 mean(abs(fit_lm$residuals)) #mean absolute error
-
-
 
 #number of station-years
 dplyr::select(NAB_NPN_quru_peak_day, site, years) %>% distinct()
@@ -530,7 +505,7 @@ car::qqPlot(NAB_NPN_quru_peak_day$quru_peak_day_pred_fit)
 qqplot(x = NAB_NPN_quru_peak_day$ydays, y = NAB_NPN_quru_peak_day$quru_peak_day_pred_fit, xlab = "observed flowering date", ylab = "predicted pollen date")
 
 
-### SI 3: Fig 3 by site  #############################################################################################
+### SI 3: version of Fig 3 by site  #############################################################################################
 ggplot(NAB_NPN_quru_peak_day, aes(x = as.Date(quru_peak_day_pred_fit, origin = as.Date("2018-01-01")), 
                                   y = as.Date(ydays, origin = as.Date("2018-01-01"))   )) + #, group = site
   geom_point(aes(color = as.factor(site))) + ggthemes::theme_few() + facet_wrap(~site) +
@@ -538,16 +513,13 @@ ggplot(NAB_NPN_quru_peak_day, aes(x = as.Date(quru_peak_day_pred_fit, origin = a
   geom_abline(slope = 1, intercept = 0, lty = 2) +
   xlab("peak flowering (date)")+ ylab("peak pollen (date)") +
   scale_color_discrete(guide="none") +
-  # stat_regline_equation(label.y = as.Date(155, origin = as.Date("2018-01-01")), aes(label = ..eq.label..), 
-  #                       label.x = as.Date(70, origin = as.Date("2018-01-01"))) +
   stat_cor(aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~")), 
            label.y = as.Date(142, origin = as.Date("2018-01-01")), 
            label.x = as.Date(83, origin = as.Date("2018-01-01")), cor.coef.name = "r", digits = 3)
 
 
-###SI 4: map residuals for Quercus flowering ~ peak pollen ================================================================================
+###SI 4: map residuals for Quercus flowering ~ peak pollen (for fig. 3) ================================================================================
 NAB_NPN_quru_peak_day <- NAB_NPN_quru_peak_day %>% ungroup() %>% mutate(resids = fit_lm$residuals)
-
 
 npn_active_flow_Qu <- npn_active_flow_Qu  %>% 
   mutate(residuals = qu_fit$residuals,
@@ -562,7 +534,6 @@ ggplot(us_boundary) +   geom_sf(data = us_boundary, colour = "black", fill = NA)
   geom_jitter(aes(x = Long, y = Lat , col = resids),# size = pollen),#col = hilo2), pollen / max_p
               data = NAB_NPN_quru_peak_day, alpha = .7, size = 3, width = 0.3, height = 0.3)  + 
   scale_color_distiller(palette = "Spectral", name = "residuals (days)") +
-  #scale_color_continuous2(low = "blue", high = "red", mid = "white", name = "residual (days)") + 
   xlab("") + ylab("") + #theme_few() + 
   theme(panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank(),
