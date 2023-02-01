@@ -656,19 +656,15 @@ panel_a <- nabnpn %>%
   # filter(nobs_yes_per_season > 50) %>% 
   # filter(sum_pol_season > 200) %>% 
   filter(doy > 95 & doy < 160) %>% 
-  ggplot(aes(x = dates, y = mean_prop_flow_ma * 100)) + geom_line(col = "blue") + 
+  ggplot(aes(x = dates, y = mean_prop_flow_ma * 100)) + geom_line(aes(col = "blue")) + 
   theme_few() + #facet_wrap(~years) +
-  geom_point(aes(x = dates, y = polpct * 100), alpha = 0.3) + xlab("date") + 
-  scale_y_continuous(name="flowering (% of observations)", sec.axis=sec_axis(~., name="airborne pollen (% of maximum)")) +
+  geom_point(aes(x = dates, y = polpct * 100, col = "gray01"), alpha = 0.3) + xlab("date") + 
+  scale_y_continuous(name="flowering or \n airborne pollen (%)") +
   annotate("text", x= ymd_hms("2018/6/05 00:00:00"), y= 98, label= paste0("\U03C1 = ", round(panel_a_cor, 2))) + 
-  theme(axis.title.y.left=element_text(color="blue"), axis.text.y.left=element_text(color="blue")) +
-  #scale_x_date(date_labels = "%b %d") +
-  # geom_segment(x = fig_season_pol_start, xend = fig_season_pol_end,#pollen 95% season line
-  #              y = -2, yend = -2, col = "black", lwd = 2)  +
-  # geom_segment(x = fig_season_npn_start, xend = fig_season_npn_end,#npn 95% season line
-  #              y = -3, yend = -3, col = "blue", lwd = 2)  +
-  geom_line(aes(y= zoo::rollmean(polpct * 100, 7, na.pad=TRUE)), col = "gray20") 
-
+  geom_line(aes(y= zoo::rollmean(polpct * 100, 7, na.pad=TRUE)), col = "gray20") +
+  scale_color_manual(guide = 'legend', name = "",
+                     values = c('black' = 'black', 'blue' = 'blue'), labels = c('airborne pollen (% of maximum)', 'flowering (% of observations)')) +
+  theme(legend.position = c(0.2, 0.6))
 
 # panel B: Springfield Acer time series 2016
 fig_site <- "Springfield"
@@ -707,16 +703,9 @@ panel_b <- nabnpn %>%
   ggplot(aes(x = dates, y = mean_prop_flow_ma * 100)) + geom_line(col = "blue") + 
   theme_few() + facet_wrap(~years) +
   geom_point(aes(x = dates, y = polpct * 100), alpha = 0.3) + xlab("date") + 
-  scale_y_continuous(name="flowering (% of observations)", sec.axis=sec_axis(~., name="airborne pollen (% of maximum)")) +
-  theme(axis.title.y.left=element_text(color="blue"), axis.text.y.left=element_text(color="blue")) +
-  #scale_x_date(date_labels = "%b %d") +
+  scale_y_continuous(name="flowering or \n airborne pollen (%)") +
   annotate("text", x= ymd_hms("2016/6/11 00:00:00"), y= 98, label= paste0("\U03C1 = ", round(panel_b_cor, 2))) + 
- # geom_segment(x = fig_season_pol_start, xend = fig_season_pol_end,#pollen 95% season line
-  #              y = -2, yend = -2, col = "black", lwd = 2)  +
-  # geom_segment(x = fig_season_npn_start, xend = fig_season_npn_end,#npn 95% season line
-  #              y = -3, yend = -3, col = "blue", lwd = 2)  +
-  #geom_line(aes(y= zoo::rollmean(polpct * 100, 7, na.pad=TRUE)), col = "gray20") 
-  geom_line(aes(y= rollapply(polpct * 100, width=7, FUN=function(x) mean(x, na.rm=TRUE), by=1, partial=TRUE, fill=NA)), col = "gray10") 
+   geom_line(aes(y= rollapply(polpct * 100, width=7, FUN=function(x) mean(x, na.rm=TRUE), by=1, partial=TRUE, fill=NA)), col = "gray10") 
 
 
 # panel C: Atlanta Quercus time series 2014
@@ -745,7 +734,9 @@ panel_c_cor <-
   summarise(out = cor(polpct, mean_prop_flow_ma, use = "complete.obs", method = "spearman")) 
 
 
-panel_c <- nabnpn %>% 
+panel_c <- 
+  
+  nabnpn %>% 
   filter(site == fig_site) %>%  #unique(nabnpn$site)
   filter(taxon == fig_taxon) %>%  #unique(nabnpn$taxon)
   filter(years == fig_year) %>% 
@@ -755,14 +746,8 @@ panel_c <- nabnpn %>%
   ggplot(aes(x = dates, y = mean_prop_flow_ma * 100)) + geom_line(col = "blue") + 
   theme_few() + #facet_wrap(~years) +
   geom_point(aes(x = dates, y = polpct * 100), alpha = 0.3) + xlab("date") + 
-  scale_y_continuous(name="flowering (% of observations)", sec.axis=sec_axis(~., name="airborne pollen (% of maximum)")) +
-  theme(axis.title.y.left=element_text(color="blue"), axis.text.y.left=element_text(color="blue")) +
+  scale_y_continuous(name="flowering or \n airborne pollen (%)") +
   annotate("text", x= ymd_hms("2015/4/26 00:00:00"), y= 98, label= paste0("\U03C1 = ", round(panel_c_cor, 2))) +
-  #scale_x_date(date_labels = "%b %d") +
-  # geom_segment(x = fig_season_pol_start, xend = fig_season_pol_end,#pollen 95% season line
-  #              y = -2, yend = -2, col = "black", lwd = 2)  +
-  # geom_segment(x = fig_season_npn_start, xend = fig_season_npn_end,#npn 95% season line
-  #              y = -3, yend = -3, col = "blue", lwd = 2)  
   geom_line(aes(y= rollapply(polpct * 100, width=7, FUN=function(x) mean(x, na.rm=TRUE), by=1, partial=TRUE, fill=NA)), col = "gray10") 
 
 #plot all panels
@@ -871,19 +856,18 @@ ggplot(cor_spear, aes(x = as.factor(NAB_buffer), y = cor_spear)) +
   facet_wrap(~taxon_labs2)
 
 #fig 3, version with just 200 km
+
+  
 cor_spear %>% 
   filter(NAB_buffer == 200) %>% 
-  ggplot(aes(x = taxon_labs2, y = cor_spear)) + 
+  ggplot(aes(x = forcats::fct_reorder(taxon_labs2, -cor_spear), y = cor_spear)) + 
   geom_hline(yintercept = 0, lty = 2) +
   geom_boxplot(outlier.shape = NA) + geom_jitter(aes(color = cor_p_value_discrete), width = 0.1, alpha = .85) + ggthemes::theme_few() +
   ylab("Spearman correlation between airborne pollen and flowering") +
   scale_color_manual(values = c("gray50", "blue4"), name = "") +
-  xlab("distance from NAB station (km)") +
+  xlab("genus") +
   scale_x_discrete(guide = guide_axis(angle = 90)) + theme( axis.text.x = ggtext::element_markdown())
-
-#  theme(strip.text.x = ggtext::element_markdown(), axis.text.x = element_text(angle = 60, vjust = 1, hjust=0.3)) 
 getwd()
-
 ggsave(filename = "Fig_3.jpg", width = 20, height = 15, units = "cm", dpi = 300, scale = 1.25)
 
 # write_csv(cor_spear, here("data", "cor_nabnpn_alldistbuffers_2c_all_seasons_221209.csv"))
