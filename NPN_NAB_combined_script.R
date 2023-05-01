@@ -666,6 +666,18 @@ panel_a <- nabnpn %>%
                      values = c('black' = 'black', 'blue' = 'blue'), labels = c('airborne pollen (% of maximum)', 'flowering (% of observations)')) +
   theme(legend.position = c(0.2, 0.6))
 
+#panel with direct correlation
+panel_a2 <- nabnpn %>% 
+  filter(site == fig_site) %>%  #unique(nabnpn$site)
+  filter(taxon == fig_taxon) %>%  #unique(nabnpn$taxon)
+  filter(years == fig_year) %>% 
+   ggplot(aes(x = mean_prop_flow_ma * 100, y = polpct * 100)) + geom_point(alpha = 0.4) + 
+  theme_few() + #facet_wrap(~years) + 
+  xlab("flowering (%)") + ylab("airborne pollen (%)") + 
+  annotate("text", x= 3, y= 96, label= paste0("\U03C1 = ", round(panel_a_cor, 2)))  
+
+
+  
 # panel B: Springfield Acer time series 2016
 fig_site <- "Springfield"
 fig_taxon <- "Acer"
@@ -701,11 +713,21 @@ panel_b <- nabnpn %>%
   # filter(sum_pol_season > 200) %>% 
   filter(doy > 50 & doy < 170) %>% 
   ggplot(aes(x = dates, y = mean_prop_flow_ma * 100)) + geom_line(col = "blue") + 
-  theme_few() + facet_wrap(~years) +
+  theme_few() + #facet_wrap(~years) +
   geom_point(aes(x = dates, y = polpct * 100), alpha = 0.3) + xlab("date") + 
   scale_y_continuous(name="flowering or \n airborne pollen (%)") +
   annotate("text", x= ymd_hms("2016/6/11 00:00:00"), y= 98, label= paste0("\U03C1 = ", round(panel_b_cor, 2))) + 
    geom_line(aes(y= rollapply(polpct * 100, width=7, FUN=function(x) mean(x, na.rm=TRUE), by=1, partial=TRUE, fill=NA)), col = "gray10") 
+
+#panel with direct correlation
+panel_b2 <- nabnpn %>% 
+  filter(site == fig_site) %>%  #unique(nabnpn$site)
+  filter(taxon == fig_taxon) %>%  #unique(nabnpn$taxon)
+  filter(years == fig_year) %>% 
+  ggplot(aes(x = mean_prop_flow_ma * 100, y = polpct * 100)) + geom_point(alpha = 0.4) + 
+  theme_few() + #facet_wrap(~years) + 
+  xlab("flowering (%)") + ylab("airborne pollen (%)") +#+ geom_abline(slope = 1, intercept = 0, lty = 2)
+  annotate("text", x= 26, y= 96, label= paste0("\U03C1 = ", round(panel_b_cor, 2)))  
 
 
 # panel C: Atlanta Quercus time series 2014
@@ -750,9 +772,25 @@ panel_c <-
   annotate("text", x= ymd_hms("2015/4/26 00:00:00"), y= 98, label= paste0("\U03C1 = ", round(panel_c_cor, 2))) +
   geom_line(aes(y= rollapply(polpct * 100, width=7, FUN=function(x) mean(x, na.rm=TRUE), by=1, partial=TRUE, fill=NA)), col = "gray10") 
 
+#panel with direct correlation
+panel_c2 <- nabnpn %>% 
+  filter(site == fig_site) %>%  #unique(nabnpn$site)
+  filter(taxon == fig_taxon) %>%  #unique(nabnpn$taxon)
+  filter(years == fig_year) %>% 
+  ggplot(aes(x = mean_prop_flow_ma * 100, y = polpct * 100)) + geom_point(alpha = 0.4) + 
+  theme_few() + #facet_wrap(~years) + 
+  xlab("flowering (%)") + ylab("airborne pollen (%)") +#+ geom_abline(slope = 1, intercept = 0, lty = 2)
+  annotate("text", x= 32, y= 96, label= paste0("\U03C1 = ", round(panel_c_cor, 2)))  
+
+
 #plot all panels
 cowplot::plot_grid(panel_a, panel_b, panel_c, nrow = 3)
 
+#plot all direct comparisons
+cowplot::plot_grid(panel_a2, panel_b2, panel_c2, nrow = 3)
+
+#plot all 
+cowplot::plot_grid(panel_a, panel_a2, panel_b, panel_b2, panel_c,  panel_c2, nrow = 3, rel_widths = c(2,1))
 
 
 
