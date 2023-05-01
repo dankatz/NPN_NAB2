@@ -791,7 +791,7 @@ panel_c2 <- nabnpn %>%
 
 #plot them all as one figure
 cowplot::plot_grid(panel_a, panel_a2, panel_b, panel_b2, panel_c,  panel_c2, 
-                   nrow = 3, rel_widths = c(2.5,1), labels = "AUTO")
+                   nrow = 3, rel_widths = c(2.5,1), labels = "auto")
 cowplot::ggsave2(filename = "Fig_2_230501.png", width = 12, height = 8, dpi = 300)
 
 
