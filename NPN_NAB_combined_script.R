@@ -660,7 +660,7 @@ panel_a <- nabnpn %>%
   theme_few() + #facet_wrap(~years) +
   geom_point(aes(x = dates, y = polpct * 100, col = "gray01"), alpha = 0.3) + xlab("date") + 
   scale_y_continuous(name="flowering or \n airborne pollen (%)") +
-  annotate("text", x= ymd_hms("2018/6/05 00:00:00"), y= 98, label= paste0("\U03C1 = ", round(panel_a_cor, 2))) + 
+  #annotate("text", x= ymd_hms("2018/6/05 00:00:00"), y= 98, label= paste0("\U03C1 = ", round(panel_a_cor, 2))) + 
   geom_line(aes(y= zoo::rollmean(polpct * 100, 7, na.pad=TRUE)), col = "gray20") +
   scale_color_manual(guide = 'legend', name = "",
                      values = c('black' = 'black', 'blue' = 'blue'), labels = c('airborne pollen (% of maximum)', 'flowering (% of observations)')) +
@@ -716,7 +716,7 @@ panel_b <- nabnpn %>%
   theme_few() + #facet_wrap(~years) +
   geom_point(aes(x = dates, y = polpct * 100), alpha = 0.3) + xlab("date") + 
   scale_y_continuous(name="flowering or \n airborne pollen (%)") +
-  annotate("text", x= ymd_hms("2016/6/11 00:00:00"), y= 98, label= paste0("\U03C1 = ", round(panel_b_cor, 2))) + 
+#  annotate("text", x= ymd_hms("2016/6/11 00:00:00"), y= 98, label= paste0("\U03C1 = ", round(panel_b_cor, 2))) + 
    geom_line(aes(y= rollapply(polpct * 100, width=7, FUN=function(x) mean(x, na.rm=TRUE), by=1, partial=TRUE, fill=NA)), col = "gray10") 
 
 #panel with direct correlation
@@ -769,7 +769,7 @@ panel_c <-
   theme_few() + #facet_wrap(~years) +
   geom_point(aes(x = dates, y = polpct * 100), alpha = 0.3) + xlab("date") + 
   scale_y_continuous(name="flowering or \n airborne pollen (%)") +
-  annotate("text", x= ymd_hms("2015/4/26 00:00:00"), y= 98, label= paste0("\U03C1 = ", round(panel_c_cor, 2))) +
+ # annotate("text", x= ymd_hms("2015/4/26 00:00:00"), y= 98, label= paste0("\U03C1 = ", round(panel_c_cor, 2))) +
   geom_line(aes(y= rollapply(polpct * 100, width=7, FUN=function(x) mean(x, na.rm=TRUE), by=1, partial=TRUE, fill=NA)), col = "gray10") 
 
 #panel with direct correlation
@@ -783,15 +783,16 @@ panel_c2 <- nabnpn %>%
   annotate("text", x= 32, y= 96, label= paste0("\U03C1 = ", round(panel_c_cor, 2)))  
 
 
-#plot all panels
-cowplot::plot_grid(panel_a, panel_b, panel_c, nrow = 3)
+# #plot all panels
+# cowplot::plot_grid(panel_a, panel_b, panel_c, nrow = 3)
+# 
+# #plot all direct comparisons
+# cowplot::plot_grid(panel_a2, panel_b2, panel_c2, nrow = 3)
 
-#plot all direct comparisons
-cowplot::plot_grid(panel_a2, panel_b2, panel_c2, nrow = 3)
-
-#plot all 
-cowplot::plot_grid(panel_a, panel_a2, panel_b, panel_b2, panel_c,  panel_c2, nrow = 3, rel_widths = c(2,1))
-
+#plot them all as one figure
+cowplot::plot_grid(panel_a, panel_a2, panel_b, panel_b2, panel_c,  panel_c2, 
+                   nrow = 3, rel_widths = c(2.5,1), labels = "AUTO")
+cowplot::ggsave2(filename = "Fig_2_230501.png", width = 12, height = 8, dpi = 300)
 
 
 ### Fig. 3: overall comparisons  of correlation by distance by taxon ##############################################################################
