@@ -1146,13 +1146,14 @@ npn_raw %>%
 # run Fig 3 section first to generate cor_spear!!
 
 
-#new version of Fig. SI 3: histograms of number of obs in a taxon x site x year comparison at each buffer size
+#new version of Fig. SI 4: histograms of number of obs in a taxon x site x year comparison at each buffer size
 #main point: more comparisons possible at higher buffer size, but for most comparisons n ~ 100 - 300
 ggplot(cor_spear, aes(x = n_npn_observations, color = as.factor(NAB_buffer))) + geom_freqpoly(lwd = 1) + 
-  ggthemes::theme_few() + xlab("number of observations included in comparison") +
+  ggthemes::theme_few() + xlab("total number of Nature's Notebook observations included in a comparison") + 
+  ylab("unique site ✕ taxon ✕ year comparisons") + 
   scale_color_viridis_d(name = "buffer distance (km)", direction = -1) + 
   theme(legend.position = c(0.7,0.7))
-ggsave(filename = "Fig_SI_3_221216.jpg", width = 15, height = 15, units = "cm", dpi = 300, scale = 1.25)
+ggsave(filename = "Fig_SI_3_230530.jpg", width = 15, height = 15, units = "cm", dpi = 300, scale = 1.25)
 
 
 ### Fig SI 4: difference in mean annual temperature between NPN obs and NAB station
